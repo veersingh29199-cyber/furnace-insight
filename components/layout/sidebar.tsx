@@ -11,6 +11,7 @@ import {
   Upload,
   Settings,
   X,
+  FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -18,6 +19,7 @@ const navItems = [
   { href: '/dashboard',      label: '대시보드',          icon: LayoutDashboard },
   { href: '/productivity',   label: '생산성 분석',        icon: BarChart3 },
   { href: '/gas-analysis',   label: '가스원단위 분석',    icon: Flame },
+  { href: '/reports',        label: '보고서 출력(PDF/PPT)', icon: FileText },
   { href: '/data-entry',     label: '데이터 입력',        icon: ClipboardList },
   { href: '/import',         label: '엑셀 임포터',        icon: Upload },
   { href: '/settings',       label: '관리/설정',          icon: Settings },
