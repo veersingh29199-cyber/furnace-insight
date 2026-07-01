@@ -25,7 +25,14 @@ alter table public.gas_daily_readings
 alter table public.audit_log alter column actor drop not null;
 alter table public.audit_log add column if not exists actor_name text;
 
--- 4. 기존 RLS 정책 일괄 삭제 (멱등성 보장)
+-- 4. 역할 조회 헬퍼 함수 보장 (미생성 또는 삭제된 경우 대비)
+create or replace function public.get_my_role()
+returns text language sql security definer stable
+as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
+-- 5. 기존 RLS 정책 일괄 삭제 (멱등성 보장)
 drop policy if exists "profiles: 자신 조회" on public.profiles;
 drop policy if exists "profiles: admin 전체 조회" on public.profiles;
 drop policy if exists "profiles: admin 수정" on public.profiles;
