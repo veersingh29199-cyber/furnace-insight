@@ -7,8 +7,6 @@
 alter table public.production_records alter column created_by drop not null;
 alter table public.gas_records        alter column created_by drop not null;
 alter table public.gas_daily_readings alter column created_by drop not null;
-alter table public.targets            alter column created_by drop not null;
-alter table public.benchmarks         alter column created_by drop not null;
 
 -- 2. 부서원 실명 / 교대조 기록용 컬럼 추가 (entered_by_name, entered_by_shift)
 alter table public.production_records
