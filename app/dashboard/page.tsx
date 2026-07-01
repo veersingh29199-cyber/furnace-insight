@@ -18,6 +18,8 @@ import {
   detectOutliers, currentMonthDate
 } from '@/lib/utils'
 
+import { InputStatusCard } from '@/components/dashboard/input-status-card'
+
 export default function DashboardPage() {
   const { data: kpi, isLoading: kpiLoading } = useDashboardKpi()
 
@@ -50,6 +52,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* 이번 달 입력 현황 카드 */}
+      <InputStatusCard />
+
       {/* 도움말 배너 */}
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />

@@ -16,6 +16,9 @@ import { Loader2, Save, Calculator } from 'lucide-react'
 import { currentMonthDate, calcTonPerHour, calcAchievementRate, formatTonPerHour, formatPercent } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 
+import { InfoTooltip, AutoCalcBadge } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
+
 export default function ProductionRecordForm() {
   const { data: lines }    = useLines()
   const { data: products } = useProducts()
@@ -52,15 +55,22 @@ export default function ProductionRecordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">월별 생산 실적 입력</CardTitle>
-        <CardDescription>라인·제품·교대조별로 목표와 실적을 입력합니다. 같은 조건으로 다시 저장하면 덮어씁니다.</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2">
+          🏭 월별 생산 실적 입력
+        </CardTitle>
+        <CardDescription>
+          라인·제품·교대조별로 목표 중량(톤)과 실적 중량을 입력합니다. 동일한 조건으로 저장 시 마지막 입력값으로 덮어씁니다.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* 기본 정보 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label>작업월 *</Label>
+              <Label className="flex items-center gap-1">
+                작업월 <span className="text-destructive">*</span>
+                <InfoTooltip content="해당 생산 실적이 발생한 월(YYYY-MM)입니다." />
+              </Label>
               <Input type="month" {...register('work_month', {
                 setValueAs: v => v ? `${v}-01` : '',
               })}
@@ -71,7 +81,10 @@ export default function ProductionRecordForm() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>라인 *</Label>
+              <Label className="flex items-center gap-1">
+                라인 <span className="text-destructive">*</span>
+                <InfoTooltip content="생산이 이루어진 단조 공장 생산 라인을 마스터 목록에서 선택합니다." />
+              </Label>
               <Select onValueChange={(v: string | null) => setValue('line_id', String(v ?? ''))}>
                 <SelectTrigger><SelectValue placeholder="라인 선택" /></SelectTrigger>
                 <SelectContent>
@@ -84,7 +97,10 @@ export default function ProductionRecordForm() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>제품 (선택)</Label>
+              <Label className="flex items-center gap-1">
+                제품 (선택)
+                <InfoTooltip content="특정 품종/재질(예: 금형강, 크랭크축) 실적일 경우 선택합니다." />
+              </Label>
               <Select onValueChange={(v: string | null) => setValue('product_id', (!v || v === '_none') ? null : String(v))}>
                 <SelectTrigger><SelectValue placeholder="전체 (미선택)" /></SelectTrigger>
                 <SelectContent>
@@ -98,7 +114,10 @@ export default function ProductionRecordForm() {
           </div>
 
           <div className="space-y-1.5 max-w-xs">
-            <Label>교대조 (선택)</Label>
+            <Label className="flex items-center gap-1">
+              교대조 (선택)
+              <InfoTooltip content="주간/야간 구분 실적이 아니면 '주야간 합계'로 둡니다." />
+            </Label>
             <Select onValueChange={(v: string | null) => setValue('shift', String(v ?? 'both') as 'day' | 'night' | 'both')}>
               <SelectTrigger><SelectValue placeholder="전체 (미선택)" /></SelectTrigger>
               <SelectContent>
@@ -113,18 +132,23 @@ export default function ProductionRecordForm() {
 
           {/* 중량 데이터 */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 text-muted-foreground">📦 중량 (톤)</h3>
+            <h3 className="text-sm font-semibold mb-3 text-foreground flex items-center gap-1.5">
+              📦 중량 입력 (단위: 톤)
+            </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
-                { key: 'plan_ton',           label: '목표 *' },
-                { key: 'actual_ton',         label: '실적 *' },
-                { key: 'hwangji_ton',        label: '황지' },
-                { key: 'cogging_ton',        label: 'COGGING' },
-                { key: 'rework_self_ton',    label: '자체재작' },
-                { key: 'rework_quality_ton', label: '품질재작' },
-              ].map(({ key, label }) => (
-                <div key={key} className="space-y-1.5">
-                  <Label>{label}</Label>
+                { key: 'plan_ton',           label: '목표 (톤) *', tip: '사전 확정된 월간 목표 생산 중량' },
+                { key: 'actual_ton',         label: '실적 (톤) *', tip: '실제 단조 생산된 총 합격품 중량' },
+                { key: 'hwangji_ton',        label: '황지 (선택)', tip: '황지 공정 중량' },
+                { key: 'cogging_ton',        label: 'COGGING (선택)', tip: '코깅 공정 중량' },
+                { key: 'rework_self_ton',    label: '자체재작 (선택)', tip: '사내 원인 재작업 중량' },
+                { key: 'rework_quality_ton', label: '품질재작 (선택)', tip: '품질 원인 재작업 중량' },
+              ].map(({ key, label, tip }) => (
+                <div key={key} className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    {label}
+                    <InfoTooltip content={tip} />
+                  </Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -144,29 +168,53 @@ export default function ProductionRecordForm() {
 
           {/* 작업 시간 */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 text-muted-foreground">⏱ 작업 정보</h3>
+            <h3 className="text-sm font-semibold mb-3 text-foreground flex items-center gap-1.5">
+              ⏱ 가동 및 작업 정보
+            </h3>
             <div className="grid grid-cols-2 gap-4 max-w-sm">
-              <div className="space-y-1.5">
-                <Label>작업시간 (h) *</Label>
-                <Input type="number" step="0.5" min="0" placeholder="0" {...register('work_hours')} />
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1 text-xs">
+                  작업시간 (h) <span className="text-destructive">*</span>
+                  <InfoTooltip content="해당 라인의 실제 가동 시간. 시간당 생산량(t/h) 계산 분모로 쓰입니다." />
+                </Label>
+                <Input type="number" step="0.5" min="0" placeholder="예: 420" {...register('work_hours')} />
               </div>
-              <div className="space-y-1.5">
-                <Label>작업횟수 *</Label>
-                <Input type="number" step="1" min="0" placeholder="0" {...register('work_count')} />
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1 text-xs">
+                  작업횟수 <span className="text-destructive">*</span>
+                  <InfoTooltip content="월간 총 단조 배치 작업 횟수" />
+                </Label>
+                <Input type="number" step="1" min="0" placeholder="예: 35" {...register('work_count')} />
               </div>
             </div>
           </div>
 
           {/* 실시간 계산 */}
           {(tph != null || rate != null) && (
-            <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border text-sm">
-              <Calculator className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              {tph != null && (
-                <span>시간당 생산량: <strong className="text-primary">{formatTonPerHour(tph)} 톤/h</strong></span>
-              )}
-              {rate != null && (
-                <span>달성률: <strong className={rate >= 100 ? 'text-blue-500' : 'text-amber-500'}>{formatPercent(rate)}</strong></span>
-              )}
+            <div className="p-3.5 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-bold">저장 전 실시간 미리보기 (이렇게 저장됩니다)</span>
+                </div>
+                <AutoCalcBadge formula="실적 톤 ÷ 작업시간(h) 및 실적 톤 ÷ 목표 톤" />
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                {tph != null && (
+                  <div>
+                    <span className="text-xs text-muted-foreground block">예상 시간당 생산량 (TPH):</span>
+                    <span className="text-lg font-extrabold text-primary">{formatTonPerHour(tph)} 톤/h</span>
+                  </div>
+                )}
+                {rate != null && (
+                  <div>
+                    <span className="text-xs text-muted-foreground block">예상 목표 달성률:</span>
+                    <span className={`text-lg font-extrabold ${rate >= 100 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                      {formatPercent(rate)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

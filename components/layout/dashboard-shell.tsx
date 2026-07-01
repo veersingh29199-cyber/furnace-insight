@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Sidebar from '@/components/layout/sidebar'
 import Header from '@/components/layout/header'
+import { OnboardingTour } from '@/components/layout/onboarding-tour'
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -15,6 +16,9 @@ export default function DashboardShell({ children, pageTitle, pageDesc }: Dashbo
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      {/* 온보딩 투어 */}
+      <OnboardingTour />
+
       {/* 사이드바 */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

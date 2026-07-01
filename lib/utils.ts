@@ -23,13 +23,13 @@ export function formatNumber(value: number | null | undefined, decimals = 0): st
 
 /** 원단위 (소수 1자리) */
 export function formatGasUnit(value: number | null | undefined): string {
-  if (value == null || isNaN(value)) return '-'
+  if (value == null || isNaN(value) || value === 0) return '— (미입력)'
   return value.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
 /** 톤/h (소수 2자리) */
 export function formatTonPerHour(value: number | null | undefined): string {
-  if (value == null || isNaN(value)) return '-'
+  if (value == null || isNaN(value) || value === 0) return '— (미입력)'
   return value.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
