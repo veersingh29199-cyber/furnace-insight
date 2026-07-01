@@ -32,29 +32,20 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // 인증이 필요한 경로
-  const protectedPaths = ['/dashboard', '/productivity', '/gas-analysis', '/data-entry', '/import', '/settings']
-  const isProtected = protectedPaths.some((p) => pathname.startsWith(p))
+  // 검색엔진 크롤링 차단 (공장 사내 데이터 보호)
+  supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow')
 
-  // 로그인 안 된 상태에서 보호 경로 접근 시 로그인 페이지로
-  if (!user && isProtected) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('redirectedFrom', pathname)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // 이미 로그인된 상태에서 auth 페이지 접근 시 대시보드로
-  if (user && (pathname === '/login' || pathname === '/signup')) {
+  // 루트 경로 접속 시 즉시 대시보드로 이동 (로그인 없이)
+  if (pathname === '/') {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/dashboard'
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 루트 경로 → 리디렉션
-  if (pathname === '/') {
+  // 로그인 화면이나 회원가입 화면에 접속해도 대시보드로 안내 (개방 모드 기본)
+  if (pathname === '/login' || pathname === '/signup') {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = user ? '/dashboard' : '/login'
+    redirectUrl.pathname = '/dashboard'
     return NextResponse.redirect(redirectUrl)
   }
 

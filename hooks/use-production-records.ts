@@ -44,14 +44,17 @@ export function useUpsertProductionRecord() {
   return useMutation({
     mutationFn: async (input: ProductionRecordInput) => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('로그인이 필요합니다.')
+      const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
+      const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
 
       const payload = {
         ...input,
         product_id: input.product_id || null,
         shift: input.shift || null,
-        created_by: user.id,
-        updated_by: user.id,
+        created_by: user?.id || null,
+        updated_by: user?.id || null,
+        entered_by_name: opName,
+        entered_by_shift: opShift,
         updated_at: new Date().toISOString(),
       }
 

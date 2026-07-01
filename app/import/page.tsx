@@ -105,7 +105,8 @@ export default function ImportPage() {
     if (!parsed || !furnaces) return
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { toast.error('로그인이 필요합니다.'); return }
+    const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
+    const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
 
     setImporting(true)
     setProgress(0)
@@ -130,7 +131,9 @@ export default function ImportPage() {
             gas_usage:        row.gasUsage,
             charge_weight_kg: 0,  // 장입량은 별도 입력 필요
             source:           'bill' as const,
-            created_by:       user.id,
+            created_by:       user?.id || null,
+            entered_by_name:  opName,
+            entered_by_shift: opShift,
           }
         })
         .filter(Boolean)

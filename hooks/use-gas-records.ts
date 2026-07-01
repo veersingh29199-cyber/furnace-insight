@@ -44,11 +44,14 @@ export function useUpsertGasRecord() {
   return useMutation({
     mutationFn: async (input: GasRecordInput) => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('로그인이 필요합니다.')
+      const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
+      const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
 
       const payload = {
         ...input,
-        created_by: user.id,
+        created_by: user?.id || null,
+        entered_by_name: opName,
+        entered_by_shift: opShift,
       }
 
       const { data, error } = await supabase

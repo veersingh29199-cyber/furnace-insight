@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/components/providers/auth-provider'
+import { useOperator, DEFAULT_OPERATORS } from '@/hooks/use-operator'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { Menu, Moon, Sun, LogOut, User, ChevronDown } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Menu, Moon, Sun, LogOut, User, ChevronDown, UserCheck, Clock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const roleLabels: Record<string, string> = {
@@ -34,7 +36,9 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps) {
   const { user, profile, signOut } = useAuth()
+  const { name: operatorName, shift: operatorShift, setName: setOperatorName, setShift: setOperatorShift, mounted } = useOperator()
   const [dark, setDark] = useState(false)
+  const [customInput, setCustomInput] = useState('')
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -71,14 +75,76 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
 
       {/* 우측 액션 */}
       <div className="flex items-center gap-2">
+        {/* 비로그인 부서원 입력 주체 선택 (이름 + 교대조) */}
+        {mounted && (
+          <div className="flex items-center gap-1.5 bg-muted/50 border border-border/60 rounded-md px-2 py-1 text-xs">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary cursor-pointer outline-none">
+                <UserCheck className="h-3.5 w-3.5 text-primary" />
+                <span className="max-w-[110px] truncate">{operatorName || '입력자 선택'}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs font-semibold">현장 실무자 선택</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {DEFAULT_OPERATORS.map((op) => (
+                  <DropdownMenuItem
+                    key={op}
+                    className={`cursor-pointer text-xs ${operatorName === op ? 'font-bold text-primary bg-primary/10' : ''}`}
+                    onClick={() => setOperatorName(op)}
+                  >
+                    {op}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="p-2 space-y-1">
+                  <p className="text-[11px] text-muted-foreground">직접 입력</p>
+                  <div className="flex gap-1">
+                    <Input
+                      placeholder="이름 (소속)"
+                      value={customInput}
+                      onChange={(e) => setCustomInput(e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => {
+                        if (customInput.trim()) {
+                          setOperatorName(customInput.trim())
+                          setCustomInput('')
+                        }
+                      }}
+                    >
+                      확인
+                    </Button>
+                  </div>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <span className="text-muted-foreground">/</span>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs font-semibold gap-1"
+              onClick={() => setOperatorShift(operatorShift === 'day' ? 'night' : 'day')}
+            >
+              <Clock className="h-3 w-3 text-amber-500" />
+              {operatorShift === 'day' ? '주간조' : '야간조'}
+            </Button>
+          </div>
+        )}
+
         {/* 다크모드 토글 */}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDark}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           <span className="sr-only">다크모드 전환</span>
         </Button>
 
-        {/* 사용자 메뉴 */}
-        {user && (
+        {/* 사용자 메뉴 (관리자 로그인 시) */}
+        {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 gap-2 px-2 text-sm cursor-pointer outline-none">
               <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
@@ -116,6 +182,13 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <a
+            href="/login"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3 text-xs font-medium transition-colors"
+          >
+            관리자 로그인
+          </a>
         )}
       </div>
     </header>

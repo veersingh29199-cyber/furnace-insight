@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   description:
     '단조 공장 생산성과 가스원단위를 실시간으로 분석하고 목표 대비 실적을 추적하는 통합 플랫폼',
   keywords: ['단조', '가열로', '가스원단위', '생산성', '공장관리'],
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

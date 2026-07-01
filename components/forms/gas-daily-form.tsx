@@ -32,10 +32,11 @@ export default function GasDailyForm() {
   const upsert = useMutation({
     mutationFn: async (data: GasDailyReadingInput) => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('로그인이 필요합니다.')
+      const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
+      const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
       const { error } = await supabase
         .from('gas_daily_readings')
-        .upsert({ ...data, created_by: user.id }, { onConflict: 'date,furnace_id,shift' })
+        .upsert({ ...data, created_by: user?.id || null, entered_by_name: opName, entered_by_shift: opShift }, { onConflict: 'date,furnace_id,shift' })
       if (error) throw error
     },
     onSuccess: () => {
