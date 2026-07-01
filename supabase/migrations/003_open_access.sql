@@ -21,8 +21,8 @@ alter table public.gas_daily_readings
   add column if not exists entered_by_name text,
   add column if not exists entered_by_shift text;
 
--- 3. audit_log 테이블 개선 (비로그인 입력 주체 기록 가능하도록 user_id Nullable 변경 및 actor_name 추가)
-alter table public.audit_log alter column user_id drop not null;
+-- 3. audit_log 테이블 개선 (비로그인 입력 주체 기록 가능하도록 actor 컬럼 Nullable 변경 및 actor_name 추가)
+alter table public.audit_log alter column actor drop not null;
 alter table public.audit_log add column if not exists actor_name text;
 
 -- 4. 기존 RLS 정책 일괄 삭제 (멱등성 보장)
