@@ -22,7 +22,7 @@ const navItems = [
   { href: '/productivity',   label: '생산성 분석',        icon: BarChart3 },
   { href: '/gas-analysis',   label: '가스원단위 분석',    icon: Flame },
   { href: '/reports',        label: '보고서 출력(PDF/PPT)', icon: FileText },
-  { href: '/data-entry',     label: '데이터 입력 및 안내', icon: ClipboardList },
+  { href: '/input',          label: '데이터 입력 및 안내', icon: ClipboardList },
   { href: '/import',         label: '엑셀 임포터',        icon: Upload },
   { href: '/data-health',    label: '데이터 건강검진',    icon: Activity },
   { href: '/help',           label: '도움말/용어사전',    icon: HelpCircle },

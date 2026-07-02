@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { buttonVariants } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Activity, AlertTriangle, CheckCircle2, XCircle, ArrowRight, Database, RefreshCw } from 'lucide-react'
+import { Activity, Database, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useTargets } from '@/hooks/use-dashboard'
 
@@ -25,7 +25,7 @@ export default function DataHealthPage() {
   const gasThreshold = Math.round(gasTarget * 1.33) // 목표의 1.33배 초과 시 이상치 (기본 200)
 
   // 생산 실적 건강검진
-  const { data: prodHealth, isLoading: pLoading, refetch: refetchP } = useQuery({
+  const { data: prodHealth, refetch: refetchP } = useQuery({
     queryKey: ['health-prod', currentYear, tphThreshold],
     queryFn: async () => {
       const { data } = await supabase.from('production_records').select('*, line:lines(code, name)').gte('work_month', `${currentYear}-01-01`)
@@ -41,7 +41,7 @@ export default function DataHealthPage() {
   })
 
   // 가스 검침 건강검진
-  const { data: gasHealth, isLoading: gLoading, refetch: refetchG } = useQuery({
+  const { data: gasHealth, refetch: refetchG } = useQuery({
     queryKey: ['health-gas', currentYear, gasThreshold],
     queryFn: async () => {
       const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(code, name)').gte('ym', `${currentYear}-01`)
@@ -104,7 +104,7 @@ export default function DataHealthPage() {
                 {prodHealth?.outliers.length || 0} 건
               </strong>
             </div>
-            <Link href="/data-entry?tab=production" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full text-xs h-8' })}>
+            <Link href="/input/production" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full text-xs h-8' })}>
               생산 실적 보완하러 가기
             </Link>
           </CardContent>
@@ -136,7 +136,7 @@ export default function DataHealthPage() {
                 {gasHealth?.outliers.length || 0} 건
               </strong>
             </div>
-            <Link href="/data-entry?tab=gas-monthly" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full text-xs h-8' })}>
+            <Link href="/input/gas-monthly" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full text-xs h-8' })}>
               가스 검침 보완하러 가기
             </Link>
           </CardContent>

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertCircle, ArrowRight, ClipboardList, Flame, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
@@ -81,7 +81,7 @@ export function InputStatusCard() {
               월 누락 없이 데이터를 입력해야 정확한 시간당 생산량 및 가스원단위가 계산됩니다.
             </CardDescription>
           </div>
-          <Link href="/data-entry" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'text-xs h-8 gap-1 hidden sm:flex' })}>
+          <Link href="/input" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'text-xs h-8 gap-1 hidden sm:flex' })}>
             전체 입력화면 이동 <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -116,7 +116,7 @@ export function InputStatusCard() {
                   </div>
                 </div>
 
-                <Link href={`/data-entry?tab=${item.tab}`} className={buttonVariants({ variant: item.isEntered ? 'secondary' : 'default', size: 'sm', className: 'h-7 text-[11px] px-2.5' })}>
+                <Link href={`/input/${item.tab}`} className={buttonVariants({ variant: item.isEntered ? 'secondary' : 'default', size: 'sm', className: 'h-7 text-[11px] px-2.5' })}>
                   {item.isEntered ? '추가/수정' : '입력하기'}
                 </Link>
               </div>

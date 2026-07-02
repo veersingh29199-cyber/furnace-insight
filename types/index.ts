@@ -45,6 +45,7 @@ export interface ProductionRecord {
   line_id: string
   product_id: string | null
   shift: Shift | null
+  order_no?: string | null
   plan_ton: number
   actual_ton: number
   hwangji_ton: number
@@ -67,6 +68,7 @@ export interface GasRecord {
   id: string
   ym: string // date (YYYY-MM-01)
   furnace_id: string
+  order_no?: string | null
   charge_weight_kg: number
   gas_usage: number
   gas_unit: number | null // GENERATED
@@ -83,6 +85,7 @@ export interface GasDailyReading {
   date: string
   furnace_id: string
   shift: Shift
+  order_no?: string | null
   value: number
   created_by: string
   // joined

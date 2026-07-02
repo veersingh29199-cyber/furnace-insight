@@ -6,8 +6,7 @@ import { KpiCard, AchievementCard } from '@/components/charts/kpi-card'
 import { BenchmarkGauge } from '@/components/charts/benchmark-gauge'
 import { GasUnitTrendChart } from '@/components/charts/trend-charts'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Flame, BarChart3, TrendingDown, AlertTriangle, Info,
@@ -61,7 +60,7 @@ export default function DashboardPage() {
         <AlertDescription className="text-sm">
           <strong>이번 달</strong> 전체 가열로·생산 현황을 요약합니다.
           데이터를 입력하려면{' '}
-          <a href="/data-entry" className="text-primary underline underline-offset-2 font-medium">
+          <a href="/input" className="text-primary underline underline-offset-2 font-medium">
             데이터 입력
           </a>
           {' '}메뉴를 이용하세요.
@@ -162,7 +161,7 @@ export default function DashboardPage() {
               <div>
                 <p className="font-medium text-muted-foreground">가스 검침 데이터가 없습니다</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  <a href="/data-entry" className="text-primary underline">데이터 입력</a>에서 가열로 검침을 입력하거나,{' '}
+                  <a href="/input" className="text-primary underline">데이터 입력</a>에서 가열로 검침을 입력하거나,{' '}
                   <a href="/import" className="text-primary underline">엑셀 임포터</a>로 일괄 적재해 보세요.
                 </p>
               </div>
@@ -180,7 +179,7 @@ export default function DashboardPage() {
           {[
             { href: '/productivity',  label: '생산성 분석',     icon: BarChart3,     desc: '라인·제품별 추이' },
             { href: '/gas-analysis',  label: '가스원단위 분석', icon: Flame,         desc: '호기별 원단위' },
-            { href: '/data-entry',    label: '데이터 입력',     icon: Clock,         desc: '실적·검침 입력' },
+            { href: '/input',         label: '데이터 입력',     icon: Clock,         desc: '실적·검침 입력' },
             { href: '/import',        label: '엑셀 임포터',     icon: TrendingDown,  desc: '과거 데이터 적재' },
           ].map(({ href, label, icon: Icon, desc }) => (
             <a key={href} href={href}

@@ -121,7 +121,53 @@ body {
   color: var(--foreground);
 }
 
-/* 스크롤바 스타일 */
+.dsg-container {
+  --dsg-border-color: var(--border);
+  --dsg-selection-border-color: var(--primary);
+  --dsg-selection-border-radius: 10px;
+  --dsg-selection-background-color: color-mix(in oklab, var(--primary) 14%, transparent);
+  --dsg-selection-disabled-border-color: var(--muted-foreground);
+  --dsg-selection-disabled-background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --dsg-header-text-color: var(--muted-foreground);
+  --dsg-header-active-text-color: var(--foreground);
+  --dsg-cell-background-color: var(--card);
+  --dsg-cell-disabled-background-color: var(--muted);
+  --dsg-scroll-shadow-color: color-mix(in oklab, black 18%, transparent);
+}
+
+.dark .dsg-container {
+  --dsg-border-color: var(--border);
+  --dsg-selection-border-color: var(--primary);
+  --dsg-selection-background-color: color-mix(in oklab, var(--primary) 18%, transparent);
+  --dsg-selection-disabled-border-color: var(--muted-foreground);
+  --dsg-selection-disabled-background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --dsg-header-text-color: var(--muted-foreground);
+  --dsg-header-active-text-color: var(--foreground);
+  --dsg-cell-background-color: var(--card);
+  --dsg-cell-disabled-background-color: var(--muted);
+  --dsg-scroll-shadow-color: color-mix(in oklab, black 28%, transparent);
+}
+
+.dsg-container,
+.dsg-row,
+.dsg-cell,
+.dsg-input {
+  color: var(--foreground);
+}
+
+.dsg-input {
+  background: transparent;
+}
+
+.dsg-cell-header,
+.dsg-cell-gutter {
+  background: var(--muted);
+}
+
+.dsg-cell-disabled {
+  opacity: 0.95;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -137,9 +183,6 @@ body {
   background: var(--muted-foreground);
 }
 
-/* ================================================================
-   보고서 PDF/인쇄 출력 전용 레이아웃 (@media print)
-   ================================================================ */
 @media print {
   @page {
     size: A4 portrait;

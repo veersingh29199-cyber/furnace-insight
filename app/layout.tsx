@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Noto_Sans_KR } from 'next/font/google'
 import './globals.css'
+import 'react-datasheet-grid/dist/style.css'
 import QueryProvider from '@/components/providers/query-provider'
 import { AuthProvider } from '@/components/providers/auth-provider'
 import { Toaster } from '@/components/ui/sonner'
