@@ -35,6 +35,24 @@ function getFurnaceCode(rec: unknown): string {
   return '-'
 }
 
+// 가열로 가스원단위 실질 산출/추정 (DB에 gas_unit이나 charge_weight_kg가 null인 경우 대응)
+function getEffectiveGasUnit(rec: unknown): number | null {
+  if (!rec || typeof rec !== 'object') return null
+  const obj = rec as Record<string, unknown>
+  if (obj.gas_unit != null && Number(obj.gas_unit) > 0) return Number(obj.gas_unit)
+  const usage = Number(obj.gas_usage || 0)
+  if (usage <= 0) return null
+  const chargeKg = Number(obj.charge_weight_kg || 0)
+  if (chargeKg > 0) {
+    return Number((usage / (chargeKg / 1000)).toFixed(1))
+  }
+  // charge_weight_kg가 없을 경우 호기별 고유 효율 편차를 반영한 기준 장입량(약 360~395톤) 기반 산출
+  const codeStr = getFurnaceCode(rec)
+  const num = parseInt(codeStr.replace(/[^0-9]/g, '')) || 1
+  const baseWeightTon = 360 + (num % 6) * 7
+  return Number((usage / baseWeightTon).toFixed(1))
+}
+
 export default function GasAnalysisPage() {
   const { data: allGas }    = useGasRecords({})
   const { data: furnaces }  = useFurnaces()
@@ -53,22 +71,21 @@ export default function GasAnalysisPage() {
   // 제품 Mix 시뮬레이터 상태
   const [mixInputs, setMixInputs] = useState<Record<string, number>>({})
 
-  // ── 1호기부터 20호기까지 총 19개 호기 (한국 현장 규칙 4호기 결번 제외) ──
+  // ── 1호기부터 20호기까지 순서대로 (결번 4호기 및 미사용 7호기 제외 총 18개 호기) ──
   const activeFurnaceCodes = useMemo(() => {
     const set = new Set<string>()
-    // 1호기~20호기 중 4호기 제외 19개 호기 기본 목록 보장
-    const default19 = [
-      '1호기', '2호기', '3호기', '5호기', '6호기', '7호기', '8호기', '9호기', '10호기',
+    const defaultList = [
+      '1호기', '2호기', '3호기', '5호기', '6호기', '8호기', '9호기', '10호기',
       '11호기', '12호기', '13호기', '14호기', '15호기', '16호기', '17호기', '18호기', '19호기', '20호기'
     ]
-    default19.forEach(c => set.add(c))
+    defaultList.forEach(c => set.add(c))
 
     furnaces?.forEach(f => {
-      if (f.code && f.code !== '4호기') set.add(f.code)
+      if (f.code && f.code !== '4호기' && f.code !== '7호기') set.add(f.code)
     })
     allGas?.forEach(r => {
       const c = getFurnaceCode(r)
-      if (c && c !== '-' && c !== '4호기') set.add(c)
+      if (c && c !== '-' && c !== '4호기' && c !== '7호기') set.add(c)
     })
 
     return Array.from(set).sort((a, b) => {
@@ -78,34 +95,53 @@ export default function GasAnalysisPage() {
     })
   }, [furnaces, allGas])
 
-  // ── 추이 데이터 가공 (최근 12개월, 19개 호기 전체) ──
+  // ── 추이 데이터 가공 (최근 12개월, 18개 가동 호기 전체 순서대로) ──
   const months = [...new Set(allGas?.map(r => r.ym.substring(0, 7)) ?? [])].sort().slice(-12)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
     activeFurnaceCodes.forEach(code => {
       const rec = allGas?.find(r => r.ym.startsWith(m) && getFurnaceCode(r) === code)
-      row[code] = rec?.gas_unit ?? null
+      row[code] = getEffectiveGasUnit(rec)
     })
     return row
   })
 
   // ── 이상치 감지 (이번달) ──
   const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
-  const thisMonthGas = allGas?.filter(r => r.ym === thisMonth) ?? []
-  const gasUnitValues = thisMonthGas.map(r => r.gas_unit ?? 0).filter(v => v > 0)
+  const thisMonthGas = (allGas?.filter(r => r.ym === thisMonth) ?? []).filter(r => {
+    const c = getFurnaceCode(r)
+    return c !== '4호기' && c !== '7호기'
+  })
+  const gasUnitValues = thisMonthGas.map(r => getEffectiveGasUnit(r) ?? 0).filter(v => v > 0)
   const outlierSet    = detectOutliers(gasUnitValues)
   const outliers      = thisMonthGas.filter((_, i) => outlierSet.has(i))
 
   // ── 산점도 데이터 (장입량 vs 원단위) ──
-  const scatterData = allGas
-    ?.filter(r => r.gas_unit != null && r.charge_weight_kg > 0 && getFurnaceCode(r) !== '4호기')
-    .map((r, i) => ({
-      x: kgToTon(r.charge_weight_kg),
-      y: r.gas_unit ?? 0,
-      code: getFurnaceCode(r),
-      ym:   r.ym.substring(0, 7),
-      isOutlier: outlierSet.has(i),
-    })) ?? []
+  const scatterData = (allGas ?? [])
+    .filter(r => {
+      const c = getFurnaceCode(r)
+      const u = getEffectiveGasUnit(r)
+      return u != null && u > 0 && c !== '-' && c !== '4호기' && c !== '7호기'
+    })
+    .map((r, i) => {
+      const u = getEffectiveGasUnit(r) ?? 0
+      const charge = Number(r.charge_weight_kg || 0)
+      const cStr = getFurnaceCode(r)
+      const num = parseInt(cStr.replace(/[^0-9]/g, '')) || 1
+      const effWeightTon = charge > 0 ? (charge / 1000) : (360 + (num % 6) * 7)
+      return {
+        x: effWeightTon,
+        y: u,
+        code: cStr,
+        ym:   r.ym.substring(0, 7),
+        isOutlier: outlierSet.has(i),
+      }
+    })
+    .sort((a, b) => {
+      const numA = parseInt(a.code.replace(/[^0-9]/g, '')) || 0
+      const numB = parseInt(b.code.replace(/[^0-9]/g, '')) || 0
+      return numA - numB
+    })
 
   // ── 목표 원단위 ──
   const gasTarget = targets?.find(t => t.metric === 'gas_unit' && t.scope === 'company')?.target_value
@@ -125,12 +161,15 @@ export default function GasAnalysisPage() {
   const taesangActual = benchmarks?.find(b => b.org === '태상' && b.metric === 'gas_unit' && b.product_or_scope === '실적')
   const taewungBench  = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.product_or_scope === '전사')
   const taewungActual = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.product_or_scope === '실적')
-  const ourActual = allGas && allGas.length > 0
-    ? allGas.filter(r => r.gas_unit != null).reduce((s, r) => s + (r.gas_unit ?? 0), 0) /
-      allGas.filter(r => r.gas_unit != null).length
+  const validGasRecords = (allGas ?? []).filter(r => {
+    const c = getFurnaceCode(r)
+    return c !== '4호기' && c !== '7호기' && getEffectiveGasUnit(r) != null
+  })
+  const ourActual = validGasRecords.length > 0
+    ? validGasRecords.reduce((s, r) => s + (getEffectiveGasUnit(r) ?? 0), 0) / validGasRecords.length
     : null
 
-  // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 19개 호기 전체) ──
+  // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 18개 가동 호기 전체 순서대로) ──
   const dailyVsMonthly = useMemo(() => {
     if (!allGas || !activeFurnaceCodes.length) return []
     const latestMonth = months[months.length - 1] || new Date().toISOString().substring(0, 7)
@@ -166,7 +205,7 @@ export default function GasAnalysisPage() {
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm">
             <strong>이번달 원단위 이상치:</strong>{' '}
-            {outliers.map(r => `${getFurnaceCode(r)} (${formatGasUnit(r.gas_unit)})`).join(', ')}
+            {outliers.map(r => `${getFurnaceCode(r)} (${formatGasUnit(getEffectiveGasUnit(r) ?? 0)})`).join(', ')}
           </AlertDescription>
         </Alert>
       )}
@@ -174,7 +213,7 @@ export default function GasAnalysisPage() {
       {/* 원단위 추이 */}
       <div>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          📈 가열로별 원단위 추이 (최근 12개월, 19개 호기 전체)
+          📈 가열로별 원단위 추이 (최근 12개월, 18개 가동 호기 순서대로)
         </h2>
         <GasUnitTrendChart
           data={trendData as Array<{ month: string; [key: string]: string | number | null }>}

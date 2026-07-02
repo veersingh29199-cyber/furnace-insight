@@ -111,7 +111,44 @@ const GAS_COLORS = [
   '#be185d', '#15803d', '#b45309', '#4f46e5', '#047857',
 ]
 
+const CustomGasTooltip = ({ active, payload, label }: {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; color: string }>
+  label?: string
+}) => {
+  if (!active || !payload?.length) return null
+  const sortedPayload = [...payload].sort((a, b) => {
+    const numA = parseInt(a.name.replace(/[^0-9]/g, '')) || 0
+    const numB = parseInt(b.name.replace(/[^0-9]/g, '')) || 0
+    return numA - numB
+  })
+  return (
+    <div className="rounded-lg border border-border bg-background p-3 shadow-lg text-xs max-h-64 overflow-y-auto z-50">
+      <p className="font-semibold mb-1.5 text-sm border-b border-border pb-1">{formatYearMonth(label + '-01')}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 mt-1">
+        {sortedPayload.map((p) => (
+          p.value != null && (
+            <div key={p.name} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                <span className="text-muted-foreground font-medium">{p.name}:</span>
+              </div>
+              <span className="font-mono font-bold">{Number(p.value).toFixed(1)}</span>
+            </div>
+          )
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTrendChartProps) {
+  const sortedCodes = [...furnaceCodes].sort((a, b) => {
+    const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0
+    const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0
+    return numA - numB
+  })
+
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -135,15 +172,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
               tickLine={false}
               axisLine={false}
             />
-            <Tooltip
-              contentStyle={{
-                background: 'var(--background)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontSize: '12px',
-              }}
-              formatter={(val) => [(typeof val === 'number' ? val : Number(val))?.toFixed(1), '']}
-            />
+            <Tooltip content={<CustomGasTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
             {targetValue && (
               <ReferenceLine
@@ -153,7 +182,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
                 label={{ value: `목표 ${targetValue}`, fill: 'var(--destructive)', fontSize: 10, position: 'right' }}
               />
             )}
-            {furnaceCodes.map((code, i) => (
+            {sortedCodes.map((code, i) => (
               <Line
                 key={code}
                 type="monotone"
