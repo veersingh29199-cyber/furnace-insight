@@ -45,8 +45,8 @@ export default function ReportsPage() {
   const { data: prodRecords, isLoading: prodLoading } = useQuery({
     queryKey: ['report-prod', selectedYear, selectedLine],
     queryFn: async () => {
-      let q = supabase.from('production_records').select('*, line:lines(*)').gte('work_month', `${selectedYear}-01-01`).lte('work_month', `${selectedYear}-12-31`)
-      if (selectedLine !== 'all') q = q.eq('line_id', selectedLine)
+      let q = supabase.from('production_records').select('*, line:lines(code, name)').gte('work_month', `${selectedYear}-01-01`).lte('work_month', `${selectedYear}-12-31`)
+      if (selectedLine !== 'all') q = q.eq('line_code', selectedLine)
       const { data } = await q
       return data || []
     },
@@ -55,7 +55,7 @@ export default function ReportsPage() {
   const { data: gasRecords, isLoading: gasLoading } = useQuery({
     queryKey: ['report-gas', selectedYear],
     queryFn: async () => {
-      const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(*)').gte('ym', `${selectedYear}-01`).lte('ym', `${selectedYear}-12`)
+      const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(code, name)').gte('ym', `${selectedYear}-01`).lte('ym', `${selectedYear}-12`)
       return data || []
     },
   })

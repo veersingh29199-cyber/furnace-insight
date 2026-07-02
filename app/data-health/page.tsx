@@ -28,7 +28,7 @@ export default function DataHealthPage() {
   const { data: prodHealth, isLoading: pLoading, refetch: refetchP } = useQuery({
     queryKey: ['health-prod', currentYear, tphThreshold],
     queryFn: async () => {
-      const { data } = await supabase.from('production_records').select('*, line:lines(*)').gte('work_month', `${currentYear}-01-01`)
+      const { data } = await supabase.from('production_records').select('*, line:lines(code, name)').gte('work_month', `${currentYear}-01-01`)
       const list = data || []
       const missingHours = list.filter(r => !r.work_hours || Number(r.work_hours) === 0)
       const outliers = list.filter(r => {
@@ -44,7 +44,7 @@ export default function DataHealthPage() {
   const { data: gasHealth, isLoading: gLoading, refetch: refetchG } = useQuery({
     queryKey: ['health-gas', currentYear, gasThreshold],
     queryFn: async () => {
-      const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(*)').gte('ym', `${currentYear}-01`)
+      const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(code, name)').gte('ym', `${currentYear}-01`)
       const list = data || []
       const missingWeight = list.filter(r => !r.charge_weight_kg || Number(r.charge_weight_kg) === 0)
       const outliers = list.filter(r => {

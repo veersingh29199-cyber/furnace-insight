@@ -15,18 +15,20 @@ export function useProductionRecords(params?: {
   from?: string
   to?: string
   lineId?: string
+  lineCode?: string
 }) {
   return useQuery({
     queryKey: ['production-records', params],
     queryFn: async () => {
       let query = supabase
         .from('production_records')
-        .select('*, line:lines(id, code, name), product:products(id, name, material)')
+        .select('*, line:lines(code, name), product:products(name, material, std_ton_per_hour)')
         .order('work_month', { ascending: false })
 
       if (params?.from)   query = query.gte('work_month', params.from)
       if (params?.to)     query = query.lte('work_month', params.to)
-      if (params?.lineId) query = query.eq('line_id', params.lineId)
+      if (params?.lineCode) query = query.eq('line_code', params.lineCode)
+      else if (params?.lineId) query = query.eq('line_code', params.lineId)
 
       const { data, error } = await query
       if (error) throw error
@@ -89,7 +91,7 @@ export function useProductionTrend(years = 3) {
       const fromYear = new Date().getFullYear() - years + 1
       const { data, error } = await supabase
         .from('production_records')
-        .select('work_month, line_id, plan_ton, actual_ton, work_hours, line:lines(code, name)')
+        .select('work_month, line_code, plan_ton, actual_ton, work_hours, line:lines(code, name)')
         .gte('work_month', `${fromYear}-01-01`)
         .order('work_month', { ascending: true })
 

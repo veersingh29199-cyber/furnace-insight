@@ -15,18 +15,20 @@ export function useGasRecords(params?: {
   ymFrom?: string
   ymTo?: string
   furnaceId?: string
+  furnaceCode?: string
 }) {
   return useQuery({
     queryKey: ['gas-records', params],
     queryFn: async () => {
       let query = supabase
         .from('gas_records')
-        .select('*, furnace:furnaces(id, code, name)')
+        .select('*, furnace:furnaces(code, name)')
         .order('ym', { ascending: false })
 
       if (params?.ymFrom) query = query.gte('ym', params.ymFrom)
       if (params?.ymTo)   query = query.lte('ym', params.ymTo)
-      if (params?.furnaceId) query = query.eq('furnace_id', params.furnaceId)
+      if (params?.furnaceCode) query = query.eq('furnace_code', params.furnaceCode)
+      else if (params?.furnaceId) query = query.eq('furnace_code', params.furnaceId)
 
       const { data, error } = await query
       if (error) throw error

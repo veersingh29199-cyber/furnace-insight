@@ -18,14 +18,40 @@ import {
   formatPercent, formatYearMonth, median, percentile, achievementColor, cn
 } from '@/lib/utils'
 
-const LINE_CODES = ['P5', 'P8', 'P15', 'R/M']
+const FALLBACK_LINE_CODES = ['P5', 'P8', 'P15', 'R/M']
 const COLORS     = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)']
+
+// 라인 정보 안전 파싱 헬퍼
+function getLineCode(lineProp: unknown): string {
+  if (!lineProp) return '-'
+  const obj = Array.isArray(lineProp) ? lineProp[0] : lineProp
+  return obj && typeof obj === 'object' && 'code' in obj ? String((obj as { code: string }).code) : '-'
+}
+
+// 제품 정보 안전 파싱 헬퍼
+function getProductName(productProp: unknown): { name: string; stdTph?: number } {
+  if (!productProp) return { name: '미지정' }
+  const obj = Array.isArray(productProp) ? productProp[0] : productProp
+  if (obj && typeof obj === 'object') {
+    return {
+      name: 'name' in obj ? String((obj as { name: string }).name) : '미지정',
+      stdTph: 'std_ton_per_hour' in obj ? Number((obj as { std_ton_per_hour?: number }).std_ton_per_hour) : undefined,
+    }
+  }
+  return { name: '미지정' }
+}
 
 export default function ProductivityPage() {
   const [selectedLine, setSelectedLine] = useState<string>('all')
   const { data: lines }      = useLines()
   const { data: trend }      = useProductionTrend(3)
   const { data: benchmarks } = useBenchmarks()
+
+  // 동적 라인 코드 목록
+  const activeLineCodes = useMemo(() => {
+    if (lines && lines.length > 0) return lines.map(l => l.code)
+    return FALLBACK_LINE_CODES
+  }, [lines])
 
   // selectedLine 코드를 UUID로 변환
   const selectedLineId = selectedLine !== 'all'
@@ -38,44 +64,54 @@ export default function ProductivityPage() {
 
   // ── 연간 추이 데이터 가공 ──
   const trendData = useMemo(() => {
-    if (!trend) return []
+    if (!trend || trend.length === 0) return []
     const months = [...new Set(trend.map(r => r.work_month.substring(0, 7)))].sort()
     return months.map(m => {
       const row: Record<string, string | number> = { month: m }
-      LINE_CODES.forEach(code => {
+      activeLineCodes.forEach(code => {
         const recs = trend.filter(r => {
-          const lineObj = r.line as unknown as { code: string } | null
-          return r.work_month.startsWith(m) && lineObj?.code === code
+          const lCode = getLineCode(r.line)
+          return r.work_month.startsWith(m) && lCode === code
         })
-        row[`${code}_plan`]   = recs.reduce((s, r) => s + r.plan_ton, 0)
-        row[`${code}_actual`] = recs.reduce((s, r) => s + r.actual_ton, 0)
+        row[`${code}_plan`]   = recs.reduce((s, r) => s + (Number(r.plan_ton) || 0), 0)
+        row[`${code}_actual`] = recs.reduce((s, r) => s + (Number(r.actual_ton) || 0), 0)
       })
       return row
-    })
-  }, [trend])
+     })
+  }, [trend, activeLineCodes])
 
   // ── 시간당 생산량 분포 (두산 벤치마크 오버레이) ──
   const tphDistrib = useMemo(() => {
-    if (!records) return []
+    if (!records || records.length === 0) return []
     return records
-      .filter(r => r.work_hours > 0)
+      .filter(r => (r.work_hours && r.work_hours > 0) || (r.actual_ton && r.actual_ton > 0) || (r.plan_ton && r.plan_ton > 0))
       .map(r => {
-        const tph = calcTonPerHour(r.actual_ton, r.work_hours) ?? 0
+        const lineCode = getLineCode(r.line)
+        const productInfo = getProductName(r.product)
+        
+        let tph = r.work_hours > 0 ? calcTonPerHour(r.actual_ton, r.work_hours) ?? 0 : 0
+        // work_hours가 0(예: 엑셀 일괄 업로드 데이터)인 경우 표준 생산성이 있으면 대체하거나 추정치(월 40h 기준) 계산
+        if (tph === 0 && r.actual_ton > 0) {
+          if (productInfo.stdTph && productInfo.stdTph > 0) {
+            tph = productInfo.stdTph
+          } else {
+            tph = Math.round((r.actual_ton / (r.work_count > 0 ? r.work_count * 8 : 40)) * 10) / 10
+          }
+        }
+
         const rate = calcAchievementRate(r.actual_ton, r.plan_ton) ?? 0
-        const productObj = r.product as unknown as { name: string } | null
-        const lineObj    = r.line    as unknown as { code: string } | null
         const bench = benchmarks?.find(b =>
           b.metric === 'ton_per_hour' &&
           b.org === '두산' &&
-          productObj?.name === b.product_or_scope
+          productInfo.name === b.product_or_scope
         )
         return {
-          name:  lineObj?.code ?? '-',
+          name:  lineCode,
           month: r.work_month.substring(0, 7),
           tph,
           rate,
           benchmark: bench?.value ?? null,
-          product:   productObj?.name ?? '미지정',
+          product:   productInfo.name,
         }
       })
   }, [records, benchmarks])
@@ -93,18 +129,18 @@ export default function ProductivityPage() {
 
   // ── 달성률 히트맵 데이터 ──
   const heatmapData = useMemo(() => {
-    if (!records) return []
+    if (!records || records.length === 0) return []
     const grouped: Record<string, Record<string, number>> = {}
     records.forEach(r => {
       const m    = r.work_month.substring(0, 7)
-      const line = (r.line as unknown as { code: string } | null)?.code ?? '-'
+      const lineCode = getLineCode(r.line)
       const rate = calcAchievementRate(r.actual_ton, r.plan_ton) ?? 0
       if (!grouped[m]) grouped[m] = {}
-      grouped[m][line] = rate
+      grouped[m][lineCode] = rate
     })
     return Object.entries(grouped)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, lines]) => ({ month, ...lines } as Record<string, string | number>))
+      .map(([month, lData]) => ({ month, ...lData } as Record<string, string | number>))
   }, [records])
 
   // ── 선택 라인 필터 ──
@@ -134,7 +170,7 @@ export default function ProductivityPage() {
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">전체</SelectItem>
-            {LINE_CODES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {activeLineCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -146,7 +182,7 @@ export default function ProductivityPage() {
         </h2>
         {selectedLine === 'all' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {LINE_CODES.map((code, i) => {
+            {activeLineCodes.map((code, i) => {
               const lineData = trendData.map(d => ({
                 month:  d.month as string,
                 plan:   d[`${code}_plan`] as number ?? 0,
@@ -261,7 +297,7 @@ export default function ProductivityPage() {
                   <thead>
                     <tr>
                       <th className="text-left p-2 font-medium text-muted-foreground w-20">월</th>
-                      {LINE_CODES.map(c => (
+                      {activeLineCodes.map(c => (
                         <th key={c} className="text-center p-2 font-medium">{c}</th>
                       ))}
                     </tr>
@@ -270,7 +306,7 @@ export default function ProductivityPage() {
                     {heatmapData.slice(-12).map(row => (
                       <tr key={row.month as string}>
                         <td className="p-2 font-medium text-muted-foreground">{row.month as string}</td>
-                        {LINE_CODES.map(c => {
+                        {activeLineCodes.map(c => {
                           const rate = ((row as Record<string, unknown>)[c] as number | undefined) ?? null
                           const bg = rate == null
                             ? 'bg-muted/30'
