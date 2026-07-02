@@ -29,6 +29,7 @@ import { createInputId, currentMonthYm, extractMonthFromText, previousMonthYm, y
 import { buildLookup, findHeaderIndex, findHeaderRow, getCell, readInputMatrix } from '@/lib/input/parsers'
 import { ParsedSpreadsheet, ParsedSpreadsheetRow } from '@/lib/input/result'
 import { calcGasUnit, formatGasUnit } from '@/lib/utils'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const DRAFT_KEY = 'furnace-input-gas-monthly-draft-v2'
 const MAX_PREVIEW_ROWS = 20
@@ -80,7 +81,7 @@ function parseGasSource(value: string): GasSource {
 }
 
 function buildGasMonthlyParser(furnaces: ReturnType<typeof useFurnaces>['data']) {
-  const furnaceLookup = buildLookup(furnaces, (furnace) => [furnace.id, furnace.code, furnace.name])
+  const furnaceLookup = buildLookup(furnaces, (furnace) => [furnace.code, furnace.name])
 
   return (matrix: string[][], sourceName: string): ParsedSpreadsheet<GasMonthlyGridRow> => {
     const rows: GasMonthlyPreviewRow[] = []
@@ -137,7 +138,7 @@ function buildGasMonthlyParser(furnaces: ReturnType<typeof useFurnaces>['data'])
 
       const value: GasMonthlyGridRow = {
         id: `${sourceName}-${sourceRow}`,
-        furnace_id: furnace?.id ?? null,
+        furnace_code: furnace?.code ?? null,
         order_no: orderNo,
         charge_weight_kg: chargeWeightKg,
         gas_usage: gasUsage,
@@ -171,7 +172,7 @@ function buildGasMonthlyParser(furnaces: ReturnType<typeof useFurnaces>['data'])
 
 function isBlankGasMonthlyRow(row: GasMonthlyGridRow) {
   return (
-    !row.furnace_id &&
+    !row.furnace_code &&
     !row.order_no.trim() &&
     !row.note.trim() &&
     row.charge_weight_kg == null &&
@@ -182,7 +183,7 @@ function isBlankGasMonthlyRow(row: GasMonthlyGridRow) {
 function normalizeGasMonthlyPayload(row: GasMonthlyGridRow, monthDate: string) {
   return {
     ym: monthDate,
-    furnace_id: row.furnace_id,
+    furnace_code: row.furnace_code,
     order_no: row.order_no.trim() || null,
     charge_weight_kg: row.charge_weight_kg ?? 0,
     gas_usage: row.gas_usage ?? 0,
@@ -194,7 +195,7 @@ function normalizeGasMonthlyPayload(row: GasMonthlyGridRow, monthDate: string) {
 function hydrateGasMonthlyRow(record: GasRecord) {
   return {
     id: createInputId('gas-monthly-copy'),
-    furnace_id: record.furnace_id ?? null,
+    furnace_code: record.furnace_code ?? null,
     order_no: record.order_no ?? '',
     charge_weight_kg: record.charge_weight_kg ?? null,
     gas_usage: record.gas_usage ?? null,
@@ -216,17 +217,17 @@ export default function GasMonthlyInputPage() {
   const [activeFileName, setActiveFileName] = useState(() => initialDraft.activeFileName)
 
   const furnaceOptions = useMemo(
-    () => (furnaces ?? []).map((furnace) => ({ label: `${furnace.code} · ${furnace.name}`, value: furnace.id })),
+    () => (furnaces ?? []).map((furnace) => ({ label: `${furnace.code} · ${furnace.name}`, value: furnace.code })),
     [furnaces]
   )
-  const furnaceById = useMemo(() => new Map((furnaces ?? []).map((furnace) => [furnace.id, furnace])), [furnaces])
+  const furnaceByCode = useMemo(() => new Map((furnaces ?? []).map((furnace) => [furnace.code, furnace])), [furnaces])
   const previousMonth = previousMonthYm(monthYm)
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-gas-monthly-prev-month', previousMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('gas_records')
+        .from(DB.tables.gasRecords)
         .select('*')
         .eq('ym', ymToDate(previousMonth))
         .order('created_at', { ascending: true })
@@ -238,7 +239,7 @@ export default function GasMonthlyInputPage() {
 
   const columns = useMemo(
     () => [
-      createSelectKeyColumn<GasMonthlyGridRow, 'furnace_id'>('furnace_id', '호기 *', furnaceOptions, {
+      createSelectKeyColumn<GasMonthlyGridRow, 'furnace_code'>('furnace_code', '호기 *', furnaceOptions, {
         placeholder: '호기 선택',
         minWidth: 180,
         basis: 180,
@@ -295,7 +296,7 @@ export default function GasMonthlyInputPage() {
       const errors: string[] = []
       const warnings: string[] = []
 
-      if (!row.furnace_id) errors.push('호기는 필수입니다.')
+      if (!row.furnace_code) errors.push('호기는 필수입니다.')
       if (row.gas_usage == null) errors.push('가스사용량을 입력해 주세요.')
       if (row.charge_weight_kg == null || row.charge_weight_kg <= 0) warnings.push('장입량이 없으면 원단위가 계산되지 않습니다.')
 
@@ -321,7 +322,7 @@ export default function GasMonthlyInputPage() {
     const payloads = rowsToSave
       .filter((row) => !isBlankGasMonthlyRow(row))
       .map((row) => normalizeGasMonthlyPayload(row, ymToDate(monthYm)))
-      .filter((payload) => payload.furnace_id)
+      .filter((payload) => payload.furnace_code)
 
     if (payloads.length === 0) {
       toast.error('저장할 유효한 데이터가 없습니다.')
@@ -347,7 +348,7 @@ export default function GasMonthlyInputPage() {
         entered_by_shift: operatorShift,
       }))
 
-      const { error } = await supabase.from('gas_records').upsert(batch, { onConflict: 'ym,furnace_id' })
+      const { error } = await supabase.from(DB.tables.gasRecords).upsert(batch, { onConflict: DB_CONFLICT_KEYS.gasRecords })
       if (error) throw error
       saved += batch.length
     }
@@ -652,7 +653,7 @@ export default function GasMonthlyInputPage() {
                       </TableHeader>
                       <TableBody>
                         {previewRows.map((row) => {
-                          const furnace = row.value?.furnace_id ? furnaceById.get(row.value.furnace_id) : null
+                          const furnace = row.value?.furnace_code ? furnaceByCode.get(row.value.furnace_code) : null
                           const gasUnit = row.value?.charge_weight_kg != null && row.value?.gas_usage != null
                             ? calcGasUnit(row.value.gas_usage, row.value.charge_weight_kg)
                             : null
@@ -660,7 +661,7 @@ export default function GasMonthlyInputPage() {
                           return (
                             <TableRow key={row.rowIndex} className={row.errors.length > 0 ? 'bg-rose-500/10' : ''}>
                               <TableCell className="font-mono text-xs">{row.rowIndex}</TableCell>
-                              <TableCell>{furnace ? furnace.code : row.value?.furnace_id ?? '-'}</TableCell>
+                              <TableCell>{furnace ? furnace.code : row.value?.furnace_code ?? '-'}</TableCell>
                               <TableCell className="text-right">
                                 {row.value?.charge_weight_kg?.toLocaleString('ko-KR') ?? '-'}
                               </TableCell>

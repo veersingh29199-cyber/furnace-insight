@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { productionRecordSchema, type ProductionRecordInput } from '@/lib/validations'
 import { useUpsertProductionRecord } from '@/hooks/use-production-records'
@@ -14,10 +14,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Loader2, Save, Calculator } from 'lucide-react'
 import { currentMonthDate, calcTonPerHour, calcAchievementRate, formatTonPerHour, formatPercent } from '@/lib/utils'
-import { useEffect, useState } from 'react'
 
 import { InfoTooltip, AutoCalcBadge } from '@/components/ui/tooltip'
-import { Badge } from '@/components/ui/badge'
 
 export default function ProductionRecordForm() {
   const { data: lines }    = useLines()
@@ -25,12 +23,16 @@ export default function ProductionRecordForm() {
   const upsert = useUpsertProductionRecord()
 
   const {
-    register, handleSubmit, setValue, watch, reset,
+    register, handleSubmit, setValue, reset, control,
     formState: { errors },
   } = useForm<ProductionRecordInput>({
-    resolver: zodResolver(productionRecordSchema) as any,
+    resolver: zodResolver(productionRecordSchema) as unknown as Resolver<ProductionRecordInput>,
     defaultValues: {
       work_month:         currentMonthDate(),
+      line_code:          '',
+      product_name:       null,
+      order_no:           '',
+      shift:              'both',
       plan_ton:           0,
       actual_ton:         0,
       hwangji_ton:        0,
@@ -43,13 +45,30 @@ export default function ProductionRecordForm() {
   })
 
   // 실시간 계산값
-  const [actualTon, workHours, planTon] = watch(['actual_ton', 'work_hours', 'plan_ton'])
+  const actualTon = useWatch({ control, name: 'actual_ton' })
+  const workHours = useWatch({ control, name: 'work_hours' })
+  const planTon = useWatch({ control, name: 'plan_ton' })
   const tph  = calcTonPerHour(actualTon, workHours)
   const rate = calcAchievementRate(actualTon, planTon)
 
   const onSubmit = async (data: ProductionRecordInput) => {
     await upsert.mutateAsync(data)
-    reset({ work_month: data.work_month, line_id: data.line_id })
+    reset({
+      work_month: data.work_month,
+      line_code: data.line_code,
+      product_name: data.product_name ?? null,
+      order_no: '',
+      shift: data.shift ?? 'both',
+      plan_ton: 0,
+      actual_ton: 0,
+      hwangji_ton: 0,
+      cogging_ton: 0,
+      rework_self_ton: 0,
+      rework_quality_ton: 0,
+      work_hours: 0,
+      work_count: 0,
+      note: '',
+    })
   }
 
   return (
@@ -85,15 +104,15 @@ export default function ProductionRecordForm() {
                 라인 <span className="text-destructive">*</span>
                 <InfoTooltip content="생산이 이루어진 단조 공장 생산 라인을 마스터 목록에서 선택합니다." />
               </Label>
-              <Select onValueChange={(v: string | null) => setValue('line_id', String(v ?? ''))}>
+              <Select onValueChange={(v: string | null) => setValue('line_code', String(v ?? ''))}>
                 <SelectTrigger><SelectValue placeholder="라인 선택" /></SelectTrigger>
                 <SelectContent>
                   {lines?.map(l => (
-                    <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+                    <SelectItem key={l.code} value={l.code}>{l.code} — {l.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {errors.line_id && <p className="text-xs text-destructive">{errors.line_id.message}</p>}
+              {errors.line_code && <p className="text-xs text-destructive">{errors.line_code.message}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -101,12 +120,12 @@ export default function ProductionRecordForm() {
                 제품 (선택)
                 <InfoTooltip content="특정 품종/재질(예: 금형강, 크랭크축) 실적일 경우 선택합니다." />
               </Label>
-              <Select onValueChange={(v: string | null) => setValue('product_id', (!v || v === '_none') ? null : String(v))}>
+              <Select onValueChange={(v: string | null) => setValue('product_name', (!v || v === '_none') ? null : String(v))}>
                 <SelectTrigger><SelectValue placeholder="전체 (미선택)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">전체 (미선택)</SelectItem>
                   {products?.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.material})</SelectItem>
+                    <SelectItem key={p.name} value={p.name}>{p.name} ({p.material})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

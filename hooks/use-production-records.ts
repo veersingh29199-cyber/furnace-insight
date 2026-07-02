@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { ProductionRecord } from '@/types'
 import type { ProductionRecordInput } from '@/lib/validations'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const supabase = createClient()
 
@@ -21,14 +22,14 @@ export function useProductionRecords(params?: {
     queryKey: ['production-records', params],
     queryFn: async () => {
       let query = supabase
-        .from('production_records')
+        .from(DB.tables.productionRecords)
         .select('*, line:lines(code, name), product:products(name, material, std_ton_per_hour)')
         .order('work_month', { ascending: false })
 
-      if (params?.from)   query = query.gte('work_month', params.from)
-      if (params?.to)     query = query.lte('work_month', params.to)
-      if (params?.lineCode) query = query.eq('line_code', params.lineCode)
-      else if (params?.lineId) query = query.eq('line_code', params.lineId)
+      if (params?.from)   query = query.gte(DB.productionRecords.workMonth, params.from)
+      if (params?.to)     query = query.lte(DB.productionRecords.workMonth, params.to)
+      if (params?.lineCode) query = query.eq(DB.productionRecords.lineCode, params.lineCode)
+      else if (params?.lineId) query = query.eq(DB.productionRecords.lineCode, params.lineId)
 
       const { data, error } = await query
       if (error) throw error
@@ -51,7 +52,7 @@ export function useUpsertProductionRecord() {
 
       const payload = {
         ...input,
-        product_id: input.product_id || null,
+        product_name: input.product_name || null,
         order_no: input.order_no || null,
         shift: input.shift || null,
         created_by: user?.id || null,
@@ -61,12 +62,47 @@ export function useUpsertProductionRecord() {
         updated_at: new Date().toISOString(),
       }
 
-      const { data, error } = await supabase
-        .from('production_records')
-        .upsert(payload, { onConflict: 'work_month,line_id,product_id,shift' })
-        .select()
-        .single()
+      const table = supabase.from(DB.tables.productionRecords)
+      const useConflictUpsert = payload.product_name != null && payload.product_name !== ''
 
+      if (useConflictUpsert) {
+        const { data, error } = await table
+          .upsert(payload, { onConflict: DB_CONFLICT_KEYS.productionRecords })
+          .select()
+          .single()
+
+        if (error) throw error
+        return data
+      }
+
+      const existingQuery = table
+        .select('id')
+        .eq(DB.productionRecords.workMonth, payload.work_month)
+        .eq(DB.productionRecords.lineCode, payload.line_code)
+
+      if (payload.shift == null) {
+        existingQuery.is(DB.productionRecords.shift, null)
+      } else {
+        existingQuery.eq(DB.productionRecords.shift, payload.shift)
+      }
+
+      existingQuery.is(DB.productionRecords.productName, null)
+
+      const { data: existing, error: existingError } = await existingQuery.maybeSingle()
+      if (existingError) throw existingError
+
+      if (existing?.id) {
+        const { data, error } = await table
+          .update(payload)
+          .eq('id', existing.id)
+          .select()
+          .single()
+
+        if (error) throw error
+        return data
+      }
+
+      const { data, error } = await table.insert(payload).select().single()
       if (error) throw error
       return data
     },
@@ -90,9 +126,9 @@ export function useProductionTrend(years = 3) {
     queryFn: async () => {
       const fromYear = new Date().getFullYear() - years + 1
       const { data, error } = await supabase
-        .from('production_records')
+        .from(DB.tables.productionRecords)
         .select('work_month, line_code, plan_ton, actual_ton, work_hours, line:lines(code, name)')
-        .gte('work_month', `${fromYear}-01-01`)
+        .gte(DB.productionRecords.workMonth, `${fromYear}-01-01`)
         .order('work_month', { ascending: true })
 
       if (error) throw error

@@ -11,12 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/supabase/client'
 import { useFurnaces, useLines } from '@/hooks/use-dashboard'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 import {
   Upload, FileSpreadsheet, CheckCircle2, XCircle,
   AlertTriangle, Info, Loader2, Eye, Download
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { kgToTon } from '@/lib/utils'
 
 // ────────── 타입 ──────────
 interface GasRow {
@@ -290,8 +290,8 @@ export default function ImportPage() {
           if (!line) { fail++; return null }
           return {
             work_month:  row.ym,
-            line_id:     line.id,
-            product_id:  null,
+            line_code:   line.code,
+            product_name: null,
             shift:       'both' as const,
             plan_ton:    row.planTon,
             actual_ton:  row.actualTon,
@@ -308,8 +308,8 @@ export default function ImportPage() {
 
       if (upsertRows.length > 0) {
         const { error } = await supabase
-          .from('production_records')
-          .upsert(upsertRows as never[], { onConflict: 'work_month,line_id,product_id,shift', ignoreDuplicates: false })
+          .from(DB.tables.productionRecords)
+          .upsert(upsertRows as never[], { onConflict: DB_CONFLICT_KEYS.productionRecords, ignoreDuplicates: false })
 
         if (error) fail += upsertRows.length
         else success += upsertRows.length
@@ -354,7 +354,7 @@ export default function ImportPage() {
           if (!furnace) { fail++; return null }
           return {
             ym:               row.ym,
-            furnace_id:       furnace.id,
+            furnace_code:     furnace.code,
             gas_usage:        row.gasUsage,
             charge_weight_kg: row.chargeWeightKg ?? 0,
             source:           'bill' as const,
@@ -367,8 +367,8 @@ export default function ImportPage() {
 
       if (upsertRows.length > 0) {
         const { error } = await supabase
-          .from('gas_records')
-          .upsert(upsertRows as never[], { onConflict: 'ym,furnace_id', ignoreDuplicates: false })
+          .from(DB.tables.gasRecords)
+          .upsert(upsertRows as never[], { onConflict: DB_CONFLICT_KEYS.gasRecords, ignoreDuplicates: false })
 
         if (error) fail += upsertRows.length
         else success += upsertRows.length

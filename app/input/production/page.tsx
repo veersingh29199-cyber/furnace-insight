@@ -38,6 +38,7 @@ import {
 import { buildLookup, findHeaderIndex, findHeaderRow, getCell, readInputMatrix } from '@/lib/input/parsers'
 import { ParsedSpreadsheet, ParsedSpreadsheetRow } from '@/lib/input/result'
 import { calcAchievementRate, calcTonPerHour, formatPercent, formatTonPerHour } from '@/lib/utils'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 import type { ComponentProps } from 'react'
 
 const DRAFT_KEY = 'furnace-input-production-draft-v2'
@@ -95,8 +96,8 @@ function buildProductionParser(
   lines: ReturnType<typeof useLines>['data'],
   products: ReturnType<typeof useProducts>['data']
 ) {
-  const lineLookup = buildLookup(lines, (line) => [line.id, line.code, line.name])
-  const productLookup = buildLookup(products, (product) => [product.id, product.name, product.material])
+  const lineLookup = buildLookup(lines, (line) => [line.code, line.name])
+  const productLookup = buildLookup(products, (product) => [product.name])
 
   return (matrix: string[][], sourceName: string): ParsedSpreadsheet<ProductionGridRow> => {
     const rows: ProductionPreviewRow[] = []
@@ -214,8 +215,8 @@ function buildProductionParser(
 
       const value: ProductionGridRow = {
         id: `${sourceName}-${sourceRow}`,
-        line_id: line?.id ?? null,
-        product_id: product?.id ?? null,
+        line_code: line?.code ?? null,
+        product_name: product?.name ?? null,
         shift: parseShift(shiftToken),
         order_no: orderNo,
         plan_ton: planTon,
@@ -250,8 +251,8 @@ function buildProductionParser(
 
 function isBlankProductionRow(row: ProductionGridRow) {
   return (
-    !row.line_id &&
-    !row.product_id &&
+    !row.line_code &&
+    !row.product_name &&
     !row.order_no.trim() &&
     !row.note.trim() &&
     row.plan_ton == null &&
@@ -268,8 +269,8 @@ function isBlankProductionRow(row: ProductionGridRow) {
 function normalizeProductionPayload(row: ProductionGridRow, monthDate: string) {
   return {
     work_month: monthDate,
-    line_id: row.line_id,
-    product_id: row.product_id || null,
+    line_code: row.line_code,
+    product_name: row.product_name || null,
     shift: row.shift || 'both',
     order_no: row.order_no.trim() || null,
     plan_ton: row.plan_ton ?? 0,
@@ -287,8 +288,8 @@ function normalizeProductionPayload(row: ProductionGridRow, monthDate: string) {
 function hydrateProductionRow(record: ProductionRecord) {
   return {
     id: createInputId('production-copy'),
-    line_id: record.line_id ?? null,
-    product_id: record.product_id ?? null,
+    line_code: record.line_code ?? null,
+    product_name: record.product_name ?? null,
     shift: record.shift ?? 'both',
     order_no: record.order_no ?? '',
     plan_ton: record.plan_ton ?? null,
@@ -317,22 +318,22 @@ export default function ProductionInputPage() {
   const [activeFileName, setActiveFileName] = useState(() => initialDraft.activeFileName)
 
   const lineOptions = useMemo(
-    () => (lines ?? []).map((line) => ({ label: `${line.code} · ${line.name}`, value: line.id })),
+    () => (lines ?? []).map((line) => ({ label: `${line.code} · ${line.name}`, value: line.code })),
     [lines]
   )
   const productOptions = useMemo(
-    () => (products ?? []).map((product) => ({ label: `${product.name} (${product.material})`, value: product.id })),
+    () => (products ?? []).map((product) => ({ label: `${product.name} (${product.material})`, value: product.name })),
     [products]
   )
-  const lineById = useMemo(() => new Map((lines ?? []).map((line) => [line.id, line])), [lines])
-  const productById = useMemo(() => new Map((products ?? []).map((product) => [product.id, product])), [products])
+  const lineByCode = useMemo(() => new Map((lines ?? []).map((line) => [line.code, line])), [lines])
+  const productByName = useMemo(() => new Map((products ?? []).map((product) => [product.name, product])), [products])
   const previousMonth = previousMonthYm(monthYm)
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-production-prev-month', previousMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('production_records')
+        .from(DB.tables.productionRecords)
         .select('*')
         .eq('work_month', ymToDate(previousMonth))
         .order('created_at', { ascending: true })
@@ -344,12 +345,12 @@ export default function ProductionInputPage() {
 
   const columns = useMemo(
     () => [
-      createSelectKeyColumn<ProductionGridRow, 'line_id'>('line_id', '라인 *', lineOptions, {
+      createSelectKeyColumn<ProductionGridRow, 'line_code'>('line_code', '라인 *', lineOptions, {
         placeholder: '라인 선택',
         minWidth: 180,
         basis: 180,
       }),
-      createSelectKeyColumn<ProductionGridRow, 'product_id'>('product_id', '제품', productOptions, {
+      createSelectKeyColumn<ProductionGridRow, 'product_name'>('product_name', '제품', productOptions, {
         placeholder: '제품 선택',
         minWidth: 180,
         basis: 180,
@@ -417,7 +418,7 @@ export default function ProductionInputPage() {
       const errors: string[] = []
       const warnings: string[] = []
 
-      if (!row.line_id) errors.push('라인은 필수입니다.')
+      if (!row.line_code) errors.push('라인은 필수입니다.')
       if (row.plan_ton == null) errors.push('계획 수량을 입력해 주세요.')
       if (row.actual_ton == null) errors.push('실적 수량을 입력해 주세요.')
       if (row.work_hours == null) errors.push('작업시간을 입력해 주세요.')
@@ -452,7 +453,7 @@ export default function ProductionInputPage() {
     const payloads = rowsToSave
       .filter((row) => !isBlankProductionRow(row))
       .map((row) => normalizeProductionPayload(row, ymToDate(monthYm)))
-      .filter((payload) => payload.line_id)
+      .filter((payload) => payload.line_code)
 
     if (payloads.length === 0) {
       toast.error('저장할 유효한 데이터가 없습니다.')
@@ -479,17 +480,17 @@ export default function ProductionInputPage() {
     }
 
     const withProduct = payloads
-      .filter((payload) => payload.product_id)
+      .filter((payload) => payload.product_name)
       .map((payload) => ({ ...payload, ...commonFields }))
     const withoutProduct = payloads
-      .filter((payload) => !payload.product_id)
+      .filter((payload) => !payload.product_name)
       .map((payload) => ({ ...payload, ...commonFields }))
 
     for (let index = 0; index < withProduct.length; index += batchSize) {
       const batch = withProduct.slice(index, index + batchSize)
       const { error } = await supabase
-        .from('production_records')
-        .upsert(batch, { onConflict: 'work_month,line_id,product_id,shift' })
+        .from(DB.tables.productionRecords)
+        .upsert(batch, { onConflict: DB_CONFLICT_KEYS.productionRecords })
 
       if (error) throw error
       saved += batch.length
@@ -497,11 +498,11 @@ export default function ProductionInputPage() {
 
     for (const row of withoutProduct) {
       const { data: existing, error: findError } = await supabase
-        .from('production_records')
+        .from(DB.tables.productionRecords)
         .select('id')
         .eq('work_month', row.work_month)
-        .eq('line_id', row.line_id)
-        .is('product_id', null)
+        .eq('line_code', row.line_code)
+        .is('product_name', null)
         .eq('shift', row.shift)
         .maybeSingle()
 
@@ -509,13 +510,13 @@ export default function ProductionInputPage() {
 
       if (existing?.id) {
         const { error: updateError } = await supabase
-          .from('production_records')
+          .from(DB.tables.productionRecords)
           .update(row)
           .eq('id', existing.id)
 
         if (updateError) throw updateError
       } else {
-        const { error: insertError } = await supabase.from('production_records').insert(row)
+        const { error: insertError } = await supabase.from(DB.tables.productionRecords).insert(row)
         if (insertError) throw insertError
       }
 
@@ -824,14 +825,14 @@ export default function ProductionInputPage() {
                       </TableHeader>
                       <TableBody>
                         {previewRows.map((row) => {
-                          const line = row.value?.line_id ? lineById.get(row.value.line_id) : null
-                          const product = row.value?.product_id ? productById.get(row.value.product_id) : null
+                          const line = row.value?.line_code ? lineByCode.get(row.value.line_code) : null
+                          const product = row.value?.product_name ? productByName.get(row.value.product_name) : null
 
                           return (
                             <TableRow key={row.rowIndex} className={row.errors.length > 0 ? 'bg-rose-500/10' : ''}>
                               <TableCell className="font-mono text-xs">{row.rowIndex}</TableCell>
-                              <TableCell>{line ? line.code : row.value?.line_id ?? '-'}</TableCell>
-                              <TableCell>{product ? product.name : row.value?.product_id ?? '-'}</TableCell>
+                              <TableCell>{line ? line.code : row.value?.line_code ?? '-'}</TableCell>
+                              <TableCell>{product ? product.name : row.value?.product_name ?? '-'}</TableCell>
                               <TableCell>{row.value?.shift ?? '-'}</TableCell>
                               <TableCell className="text-right">
                                 {row.value?.plan_ton?.toLocaleString('ko-KR') ?? '-'}

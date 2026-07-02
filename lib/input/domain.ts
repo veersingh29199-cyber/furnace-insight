@@ -3,8 +3,8 @@ import { createInputId, monthDateForDay, daysInMonth } from '@/lib/input/common'
 
 export interface ProductionGridRow {
   id: string
-  line_id: string | null
-  product_id: string | null
+  line_code: string | null
+  product_name: string | null
   shift: Shift | null
   order_no: string
   plan_ton: number | null
@@ -20,7 +20,7 @@ export interface ProductionGridRow {
 
 export interface GasMonthlyGridRow {
   id: string
-  furnace_id: string | null
+  furnace_code: string | null
   order_no: string
   charge_weight_kg: number | null
   gas_usage: number | null
@@ -40,8 +40,8 @@ export interface DailyGasGridRow {
 export function createBlankProductionRow(): ProductionGridRow {
   return {
     id: createInputId('production'),
-    line_id: null,
-    product_id: null,
+    line_code: null,
+    product_name: null,
     shift: 'both',
     order_no: '',
     plan_ton: null,
@@ -59,7 +59,7 @@ export function createBlankProductionRow(): ProductionGridRow {
 export function createBlankGasMonthlyRow(): GasMonthlyGridRow {
   return {
     id: createInputId('gas-monthly'),
-    furnace_id: null,
+    furnace_code: null,
     order_no: '',
     charge_weight_kg: null,
     gas_usage: null,
@@ -81,8 +81,8 @@ export function createBlankDailyGasRows(ym: string, furnaceIds: string[]) {
       order_no: '',
     }
 
-    furnaceIds.forEach((id) => {
-      row[id] = null
+    furnaceIds.forEach((code) => {
+      row[code] = null
     })
 
     return row
@@ -107,9 +107,9 @@ export function cloneDailyRowsForMonth(
       target.order_no = row.order_no
     }
 
-    furnaceIds.forEach((id) => {
-      const value = row[id]
-      target[id] = typeof value === 'number' && Number.isFinite(value) ? value : null
+    furnaceIds.forEach((code) => {
+      const value = row[code]
+      target[code] = typeof value === 'number' && Number.isFinite(value) ? value : null
     })
   })
 

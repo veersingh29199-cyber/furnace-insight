@@ -39,6 +39,7 @@ import {
 } from '@/lib/input/common'
 import { buildLookup, findHeaderIndex, findHeaderRow, getCell, readInputMatrix } from '@/lib/input/parsers'
 import { ParsedSpreadsheet, ParsedSpreadsheetRow } from '@/lib/input/result'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const DRAFT_KEY = 'furnace-input-gas-daily-draft-v2'
 const MAX_PREVIEW_ROWS = 20
@@ -89,7 +90,7 @@ function buildFurnaceLookup(furnaces: Furnace[] | undefined) {
   return buildLookup(furnaces, (furnace) => {
     const token = normalizeToken(furnace.code)
     const digits = token.match(/\d+/)?.[0]
-    const aliases = new Set<string>([furnace.id, furnace.code, furnace.name, token, normalizeToken(furnace.name)])
+    const aliases = new Set<string>([furnace.code, furnace.name, token, normalizeToken(furnace.name)])
 
     if (digits) {
       aliases.add(digits)
@@ -266,19 +267,19 @@ function buildDailyParser(monthYm: string, furnaces: Furnace[] | undefined) {
         const rawValue = getCell(raw, column.index)
         const parsed = parseLooseNumber(rawValue)
         if (rawValue.trim() === '' || parsed == null) {
-          value[column.furnace.id] = null
+          value[column.furnace.code] = null
           return
         }
         if (parsed < 0) {
           errors.push(`${column.furnace.code} 값은 음수일 수 없습니다.`)
-          value[column.furnace.id] = null
+          value[column.furnace.code] = null
           return
         }
         if (parsed === 0) {
-          value[column.furnace.id] = null
+          value[column.furnace.code] = null
           return
         }
-        value[column.furnace.id] = parsed
+        value[column.furnace.code] = parsed
         readingCount += 1
       })
 
@@ -317,18 +318,18 @@ function buildDailyParser(monthYm: string, furnaces: Furnace[] | undefined) {
   }
 }
 
-function isBlankDailyRow(row: DailyGasGridRow, furnaceIds: string[]) {
-  const hasReadings = furnaceIds.some((id) => typeof row[id] === 'number')
+function isBlankDailyRow(row: DailyGasGridRow, furnaceCodes: string[]) {
+  const hasReadings = furnaceCodes.some((code) => typeof row[code] === 'number')
   return !hasReadings && row.order_no.trim() === ''
 }
 
-function normalizeDailyPayload(row: DailyGasGridRow, furnaceId: string) {
-  const value = row[furnaceId]
+function normalizeDailyPayload(row: DailyGasGridRow, furnaceCode: string) {
+  const value = row[furnaceCode]
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
 
   return {
     date: row.date,
-    furnace_id: furnaceId,
+    furnace_code: furnaceCode,
     shift: row.shift,
     order_no: row.order_no.trim() || null,
     value,
@@ -339,7 +340,7 @@ export default function GasDailyInputPage() {
   const supabase = useMemo(() => createClient(), [])
   const queryClient = useQueryClient()
   const { data: furnaces } = useFurnaces()
-  const furnaceIds = useMemo(() => (furnaces ?? []).map((furnace) => furnace.id), [furnaces])
+  const furnaceCodes = useMemo(() => (furnaces ?? []).map((furnace) => furnace.code), [furnaces])
   const initialDraft = useMemo(() => readDraft(), [])
   const [monthYm, setMonthYm] = useState(() => initialDraft.monthYm)
   const [mode, setMode] = useState<DailyDraft['mode']>(() => initialDraft.mode)
@@ -355,13 +356,13 @@ export default function GasDailyInputPage() {
     queryKey: ['input-gas-daily-prev-month', previousMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('gas_daily_readings')
+        .from(DB.tables.gasDailyReadings)
         .select('*')
         .gte('date', `${previousMonth}-01`)
         .lte('date', `${previousMonth}-${String(previousMonthLastDay).padStart(2, '0')}`)
         .order('date', { ascending: true })
-        .order('shift', { ascending: true })
-        .order('furnace_id', { ascending: true })
+        .order('shift', { ascending: true, nullsFirst: true })
+        .order('furnace_code', { ascending: true })
 
       if (error) throw error
       return (data ?? []) as GasDailyReading[]
@@ -387,7 +388,7 @@ export default function GasDailyInputPage() {
         minWidth: 160,
       }),
       ...(furnaces ?? []).map((furnace, index) =>
-        createDynamicNumberKeyColumn<DailyGasGridRow>(furnace.id, furnace.code || `${index + 1}호기`, {
+        createDynamicNumberKeyColumn<DailyGasGridRow>(furnace.code, furnace.code || `${index + 1}호기`, {
           integer: true,
           basis: 110,
           minWidth: 88,
@@ -421,8 +422,8 @@ export default function GasDailyInputPage() {
 
   const rowChecks = useMemo(() => {
     return gridRows.map((row) => {
-      const numericValues = furnaceIds
-        .map((id) => row[id])
+      const numericValues = furnaceCodes
+        .map((code) => row[code])
         .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
       const hasAnyInput = numericValues.length > 0 || row.order_no.trim() !== ''
 
@@ -452,20 +453,20 @@ export default function GasDailyInputPage() {
         totalValue,
       }
     })
-  }, [gridRows, furnaceIds, monthYm])
+  }, [gridRows, furnaceCodes, monthYm])
 
   const activeRows = rowChecks.filter((item) => !item.blank)
   const validRows = activeRows.filter((item) => item.errors.length === 0).map((item) => item.row)
   const invalidRows = activeRows.filter((item) => item.errors.length > 0)
   const readingCount = validRows.reduce(
-    (sum, row) => sum + furnaceIds.filter((id) => typeof row[id] === 'number').length,
+    (sum, row) => sum + furnaceCodes.filter((code) => typeof row[code] === 'number').length,
     0
   )
   const totalValue = validRows.reduce(
     (sum, row) =>
       sum +
-      furnaceIds.reduce((rowSum, furnaceId) => {
-        const value = row[furnaceId]
+      furnaceCodes.reduce((rowSum, furnaceCode) => {
+        const value = row[furnaceCode]
         return rowSum + (typeof value === 'number' ? value : 0)
       }, 0),
     0
@@ -473,14 +474,14 @@ export default function GasDailyInputPage() {
   const progress = daysInMonth(monthYm) > 0 ? Math.round((activeRows.length / daysInMonth(monthYm)) * 100) : 0
 
   const saveRows = async (rowsToSave: DailyGasGridRow[]) => {
-    if (furnaceIds.length === 0) {
+    if (furnaceCodes.length === 0) {
       toast.error('호기 목록을 불러오는 중입니다.')
       return
     }
 
     const payloads = rowsToSave.flatMap((row) =>
-      furnaceIds
-        .map((furnaceId) => normalizeDailyPayload(row, furnaceId))
+      furnaceCodes
+        .map((furnaceCode) => normalizeDailyPayload(row, furnaceCode))
         .filter((payload): payload is NonNullable<ReturnType<typeof normalizeDailyPayload>> => payload != null)
     )
 
@@ -508,8 +509,8 @@ export default function GasDailyInputPage() {
         entered_by_shift: operatorShift,
       }))
 
-      const { error } = await supabase.from('gas_daily_readings').upsert(batch, {
-        onConflict: 'date,furnace_id,shift',
+      const { error } = await supabase.from(DB.tables.gasDailyReadings).upsert(batch, {
+        onConflict: DB_CONFLICT_KEYS.gasDailyReadings,
       })
 
       if (error) throw error
@@ -573,7 +574,7 @@ export default function GasDailyInputPage() {
 
     if (inferredMonth) {
       setMonthYm(targetMonth)
-      setGridRows((prev) => cloneDailyRowsForMonth(targetMonth, furnaceIds, prev))
+      setGridRows((prev) => cloneDailyRowsForMonth(targetMonth, furnaceCodes, prev))
     }
 
     if (result.validRows.length === 0) {
@@ -588,12 +589,12 @@ export default function GasDailyInputPage() {
 
   const updateMonth = (nextMonth: string) => {
     setMonthYm(nextMonth)
-    setGridRows((prev) => cloneDailyRowsForMonth(nextMonth, furnaceIds, prev))
+    setGridRows((prev) => cloneDailyRowsForMonth(nextMonth, furnaceCodes, prev))
   }
 
   const applyPreviewToGrid = () => {
     if (!preview) return
-    setGridRows(cloneDailyRowsForMonth(monthYm, furnaceIds, preview.validRows))
+    setGridRows(cloneDailyRowsForMonth(monthYm, furnaceCodes, preview.validRows))
     setMode('grid')
     toast.success('미리보기를 그리드로 옮겼습니다.')
   }
@@ -604,7 +605,7 @@ export default function GasDailyInputPage() {
       return
     }
 
-    const copied = createBlankDailyGasRows(monthYm, furnaceIds)
+    const copied = createBlankDailyGasRows(monthYm, furnaceCodes)
     previousMonthRecords.forEach((record) => {
       const day = Number(record.date.slice(-2))
       const target = copied.find((row) => row.day === day)
@@ -612,7 +613,7 @@ export default function GasDailyInputPage() {
 
       target.shift = record.shift ?? 'both'
       target.order_no = record.order_no ?? ''
-      target[record.furnace_id] = record.value
+      target[record.furnace_code] = record.value
     })
 
     setGridRows(copied)
@@ -621,7 +622,7 @@ export default function GasDailyInputPage() {
   }
 
   const resetGrid = () => {
-    setGridRows(createBlankDailyGasRows(monthYm, furnaceIds))
+    setGridRows(createBlankDailyGasRows(monthYm, furnaceCodes))
     setPreview(null)
     toast.success('그리드를 초기화했습니다.')
   }
@@ -727,7 +728,7 @@ export default function GasDailyInputPage() {
                   const item = rowChecks.find((entry) => entry.row.id === rowData.id)
                   if (item?.errors.length) return 'bg-rose-500/10'
                   if (item?.warnings.length) return 'bg-amber-500/10'
-                  if (isBlankDailyRow(rowData, furnaceIds)) return 'bg-muted/20'
+                  if (isBlankDailyRow(rowData, furnaceCodes)) return 'bg-muted/20'
                   return undefined
                 }}
               />
@@ -827,9 +828,9 @@ export default function GasDailyInputPage() {
                       <TableBody>
                         {previewRows.map((row) => {
                           const validValue = row.value
-                          const furnaceCount = furnaceIds.filter((id) => typeof validValue?.[id] === 'number').length
-                          const rowTotal = furnaceIds.reduce((sum, id) => {
-                            const value = validValue?.[id]
+                          const furnaceCount = furnaceCodes.filter((code) => typeof validValue?.[code] === 'number').length
+                          const rowTotal = furnaceCodes.reduce((sum, code) => {
+                            const value = validValue?.[code]
                             return sum + (typeof value === 'number' ? value : 0)
                           }, 0)
 
@@ -896,7 +897,7 @@ export default function GasDailyInputPage() {
               window.localStorage.removeItem(DRAFT_KEY)
             }
             setPreview(null)
-            setGridRows(createBlankDailyGasRows(monthYm, furnaceIds))
+            setGridRows(createBlankDailyGasRows(monthYm, furnaceCodes))
             toast.success('임시저장을 삭제했습니다.')
           }}
         >

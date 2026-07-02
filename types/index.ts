@@ -42,8 +42,8 @@ export interface Product {
 export interface ProductionRecord {
   id: string
   work_month: string // date (YYYY-MM-01)
-  line_id: string
-  product_id: string | null
+  line_code: string
+  product_name: string | null
   shift: Shift | null
   order_no?: string | null
   plan_ton: number
@@ -67,7 +67,7 @@ export interface ProductionRecord {
 export interface GasRecord {
   id: string
   ym: string // date (YYYY-MM-01)
-  furnace_id: string
+  furnace_code: string
   order_no?: string | null
   charge_weight_kg: number
   gas_usage: number
@@ -83,8 +83,8 @@ export interface GasRecord {
 export interface GasDailyReading {
   id: string
   date: string
-  furnace_id: string
-  shift: Shift
+  furnace_code: string
+  shift: Shift | null
   order_no?: string | null
   value: number
   created_by: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { gasRecordSchema, type GasRecordInput } from '@/lib/validations'
 import { useUpsertGasRecord } from '@/hooks/use-gas-records'
@@ -11,35 +11,46 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Save, Calculator, Flame } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Save, Flame } from 'lucide-react'
 import { currentMonthDate, calcGasUnit, formatGasUnit, kgToTon } from '@/lib/utils'
 
 import { InfoTooltip, AutoCalcBadge } from '@/components/ui/tooltip'
-import { Badge } from '@/components/ui/badge'
-
 export default function GasRecordForm() {
   const { data: furnaces } = useFurnaces()
   const upsert = useUpsertGasRecord()
 
   const {
-    register, handleSubmit, setValue, watch, reset,
+    register, handleSubmit, setValue, reset, control,
     formState: { errors },
   } = useForm<GasRecordInput>({
-    resolver: zodResolver(gasRecordSchema) as any,
+    resolver: zodResolver(gasRecordSchema) as unknown as Resolver<GasRecordInput>,
     defaultValues: {
       ym:               currentMonthDate(),
+      furnace_code:     '',
+      order_no:         '',
       charge_weight_kg: 0,
       gas_usage:        0,
       source:           'meter',
+      note:             '',
     },
   })
 
-  const [chargeKg, gasUsage] = watch(['charge_weight_kg', 'gas_usage'])
+  const chargeKg = useWatch({ control, name: 'charge_weight_kg' })
+  const gasUsage = useWatch({ control, name: 'gas_usage' })
   const previewUnit = calcGasUnit(gasUsage, chargeKg)
 
   const onSubmit = async (data: GasRecordInput) => {
     await upsert.mutateAsync(data)
-    reset({ ym: data.ym, furnace_id: data.furnace_id, source: data.source })
+    reset({
+      ym: data.ym,
+      furnace_code: data.furnace_code,
+      order_no: '',
+      charge_weight_kg: 0,
+      gas_usage: 0,
+      source: data.source,
+      note: '',
+    })
   }
 
   return (
@@ -73,15 +84,15 @@ export default function GasRecordForm() {
                 가열로 <span className="text-destructive">*</span>
                 <InfoTooltip content="가스를 소비한 단조 공장 내 가열로 호기를 마스터 데이터에서 선택합니다." />
               </Label>
-              <Select onValueChange={(v: string | null) => setValue('furnace_id', String(v ?? ''))}>
+              <Select onValueChange={(v: string | null) => setValue('furnace_code', String(v ?? ''))}>
                 <SelectTrigger><SelectValue placeholder="가열로 선택" /></SelectTrigger>
                 <SelectContent className="max-h-60">
                   {furnaces?.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.code} — {f.name}</SelectItem>
+                    <SelectItem key={f.code} value={f.code}>{f.code} — {f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {errors.furnace_id && <p className="text-xs text-destructive">{errors.furnace_id.message}</p>}
+              {errors.furnace_code && <p className="text-xs text-destructive">{errors.furnace_code.message}</p>}
             </div>
 
             <div className="space-y-1.5">

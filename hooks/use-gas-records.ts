@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { GasRecord } from '@/types'
 import type { GasRecordInput } from '@/lib/validations'
+import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const supabase = createClient()
 
@@ -21,14 +22,14 @@ export function useGasRecords(params?: {
     queryKey: ['gas-records', params],
     queryFn: async () => {
       let query = supabase
-        .from('gas_records')
+        .from(DB.tables.gasRecords)
         .select('*, furnace:furnaces(code, name)')
         .order('ym', { ascending: false })
 
       if (params?.ymFrom) query = query.gte('ym', params.ymFrom)
       if (params?.ymTo)   query = query.lte('ym', params.ymTo)
-      if (params?.furnaceCode) query = query.eq('furnace_code', params.furnaceCode)
-      else if (params?.furnaceId) query = query.eq('furnace_code', params.furnaceId)
+      if (params?.furnaceCode) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceCode)
+      else if (params?.furnaceId) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceId)
 
       const { data, error } = await query
       if (error) throw error
@@ -58,8 +59,8 @@ export function useUpsertGasRecord() {
       }
 
       const { data, error } = await supabase
-        .from('gas_records')
-        .upsert(payload, { onConflict: 'ym,furnace_id' })
+        .from(DB.tables.gasRecords)
+        .upsert(payload, { onConflict: DB_CONFLICT_KEYS.gasRecords })
         .select()
         .single()
 
@@ -85,9 +86,9 @@ export function useGasStats(ym: string) {
     queryKey: ['gas-stats', ym],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('gas_records')
+        .from(DB.tables.gasRecords)
         .select('gas_unit, furnace:furnaces(code, name)')
-        .eq('ym', ym)
+        .eq(DB.gasRecords.ym, ym)
         .not('gas_unit', 'is', null)
 
       if (error) throw error
