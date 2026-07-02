@@ -23,6 +23,18 @@ import {
 
 const supabase = createClient()
 
+// 가열로 코드 안전 추출 헬퍼
+function getFurnaceCode(rec: unknown): string {
+  if (!rec || typeof rec !== 'object') return '-'
+  const obj = rec as Record<string, unknown>
+  if (obj.furnace) {
+    const f = Array.isArray(obj.furnace) ? obj.furnace[0] : obj.furnace
+    if (f && typeof f === 'object' && 'code' in f) return String((f as { code: string }).code)
+  }
+  if (obj.furnace_code) return String(obj.furnace_code)
+  return '-'
+}
+
 export default function GasAnalysisPage() {
   const { data: allGas }    = useGasRecords({})
   const { data: furnaces }  = useFurnaces()
@@ -41,13 +53,37 @@ export default function GasAnalysisPage() {
   // 제품 Mix 시뮬레이터 상태
   const [mixInputs, setMixInputs] = useState<Record<string, number>>({})
 
-  // ── 추이 데이터 가공 (최근 12개월, 주요 호기만) ──
+  // ── 1호기부터 20호기까지 총 19개 호기 (한국 현장 규칙 4호기 결번 제외) ──
+  const activeFurnaceCodes = useMemo(() => {
+    const set = new Set<string>()
+    // 1호기~20호기 중 4호기 제외 19개 호기 기본 목록 보장
+    const default19 = [
+      '1호기', '2호기', '3호기', '5호기', '6호기', '7호기', '8호기', '9호기', '10호기',
+      '11호기', '12호기', '13호기', '14호기', '15호기', '16호기', '17호기', '18호기', '19호기', '20호기'
+    ]
+    default19.forEach(c => set.add(c))
+
+    furnaces?.forEach(f => {
+      if (f.code && f.code !== '4호기') set.add(f.code)
+    })
+    allGas?.forEach(r => {
+      const c = getFurnaceCode(r)
+      if (c && c !== '-' && c !== '4호기') set.add(c)
+    })
+
+    return Array.from(set).sort((a, b) => {
+      const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0
+      const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0
+      return numA - numB
+    })
+  }, [furnaces, allGas])
+
+  // ── 추이 데이터 가공 (최근 12개월, 19개 호기 전체) ──
   const months = [...new Set(allGas?.map(r => r.ym.substring(0, 7)) ?? [])].sort().slice(-12)
-  const topFurnaces = [...new Set(allGas?.map(r => r.furnace?.code ?? '').filter(Boolean) ?? [])].slice(0, 7)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
-    topFurnaces.forEach(code => {
-      const rec = allGas?.find(r => r.ym.startsWith(m) && r.furnace?.code === code)
+    activeFurnaceCodes.forEach(code => {
+      const rec = allGas?.find(r => r.ym.startsWith(m) && getFurnaceCode(r) === code)
       row[code] = rec?.gas_unit ?? null
     })
     return row
@@ -62,11 +98,11 @@ export default function GasAnalysisPage() {
 
   // ── 산점도 데이터 (장입량 vs 원단위) ──
   const scatterData = allGas
-    ?.filter(r => r.gas_unit != null && r.charge_weight_kg > 0)
+    ?.filter(r => r.gas_unit != null && r.charge_weight_kg > 0 && getFurnaceCode(r) !== '4호기')
     .map((r, i) => ({
       x: kgToTon(r.charge_weight_kg),
       y: r.gas_unit ?? 0,
-      code: r.furnace?.code ?? '-',
+      code: getFurnaceCode(r),
       ym:   r.ym.substring(0, 7),
       isOutlier: outlierSet.has(i),
     })) ?? []
@@ -94,23 +130,25 @@ export default function GasAnalysisPage() {
       allGas.filter(r => r.gas_unit != null).length
     : null
 
-  // ── 일일 검침 vs 월간 공식 검침 교차 대조 ──
+  // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 19개 호기 전체) ──
   const dailyVsMonthly = useMemo(() => {
-    if (!allGas || !furnaces) return []
-    const results: Array<{ ym: string; furnaceCode: string; officialUsage: number; dailySum: number; diff: number; diffPct: number }> = []
+    if (!allGas || !activeFurnaceCodes.length) return []
+    const latestMonth = months[months.length - 1] || new Date().toISOString().substring(0, 7)
 
-    allGas.slice(0, 15).forEach(rec => {
-      const ymPrefix = rec.ym.substring(0, 7)
-      const furnaceCode = rec.furnace?.code || furnaces.find(f => f.id === rec.furnace_id)?.code || '-'
-      const dailyMatches = (dailyReadings || []).filter(d => d.date.startsWith(ymPrefix) && d.furnace_id === rec.furnace_id)
+    return activeFurnaceCodes.map(furnaceCode => {
+      const rec = allGas.find(r => r.ym.startsWith(latestMonth) && getFurnaceCode(r) === furnaceCode)
+      const officialUsage = rec ? Number(rec.gas_usage || 0) : 0
+
+      const dailyMatches = (dailyReadings || []).filter(d => {
+        const dCode = getFurnaceCode(d) || (d as Record<string, unknown>).furnace_code || '-'
+        return (d.date as string)?.startsWith(latestMonth) && dCode === furnaceCode
+      })
       const dailySum = dailyMatches.reduce((s, d) => s + Number(d.value || 0), 0)
-      const officialUsage = Number(rec.gas_usage || 0)
       const diff = officialUsage - dailySum
       const diffPct = officialUsage > 0 ? (diff / officialUsage) * 100 : 0
-      results.push({ ym: ymPrefix, furnaceCode, officialUsage, dailySum, diff, diffPct })
+      return { ym: latestMonth, furnaceCode, officialUsage, dailySum, diff, diffPct }
     })
-    return results
-  }, [allGas, furnaces, dailyReadings])
+  }, [allGas, activeFurnaceCodes, months, dailyReadings])
 
   return (
     <div className="space-y-6">
@@ -128,7 +166,7 @@ export default function GasAnalysisPage() {
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-sm">
             <strong>이번달 원단위 이상치:</strong>{' '}
-            {outliers.map(r => `${r.furnace?.code} (${formatGasUnit(r.gas_unit)})`).join(', ')}
+            {outliers.map(r => `${getFurnaceCode(r)} (${formatGasUnit(r.gas_unit)})`).join(', ')}
           </AlertDescription>
         </Alert>
       )}
@@ -136,11 +174,11 @@ export default function GasAnalysisPage() {
       {/* 원단위 추이 */}
       <div>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          📈 가열로별 원단위 추이 (최근 12개월)
+          📈 가열로별 원단위 추이 (최근 12개월, 19개 호기 전체)
         </h2>
         <GasUnitTrendChart
           data={trendData as Array<{ month: string; [key: string]: string | number | null }>}
-          furnaceCodes={topFurnaces}
+          furnaceCodes={activeFurnaceCodes}
           targetValue={gasTarget}
         />
       </div>
@@ -219,7 +257,7 @@ export default function GasAnalysisPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dailyVsMonthly.slice(0, 8).map((row, i) => (
+                    {dailyVsMonthly.map((row, i) => (
                       <TableRow key={i}>
                         <TableCell className="text-xs font-mono">{row.ym}</TableCell>
                         <TableCell className="text-xs font-bold">{row.furnaceCode}</TableCell>

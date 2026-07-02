@@ -105,8 +105,10 @@ interface GasUnitTrendChartProps {
 }
 
 const GAS_COLORS = [
-  'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)',
-  'var(--chart-4)', 'var(--chart-5)', '#f43f5e', '#8b5cf6',
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+  '#14b8a6', '#eab308', '#d97706', '#0284c7', '#7c3aed',
+  '#be185d', '#15803d', '#b45309', '#4f46e5', '#047857',
 ]
 
 export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTrendChartProps) {
