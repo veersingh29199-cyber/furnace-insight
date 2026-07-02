@@ -50,6 +50,7 @@ export function useUpsertProductionRecord() {
       const payload = {
         ...input,
         product_id: input.product_id || null,
+        order_no: input.order_no || null,
         shift: input.shift || null,
         created_by: user?.id || null,
         updated_by: user?.id || null,

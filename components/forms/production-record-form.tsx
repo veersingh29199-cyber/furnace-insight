@@ -65,7 +65,7 @@ export default function ProductionRecordForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* 기본 정보 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1">
                 작업월 <span className="text-destructive">*</span>
@@ -110,6 +110,14 @@ export default function ProductionRecordForm() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                수주번호 / 랏 (선택)
+                <InfoTooltip content="작업 지시 또는 수주 건별 기록 시 수주번호(예: ORD-202607-01)를 기입합니다." />
+              </Label>
+              <Input placeholder="예: ORD-2026-001" {...register('order_no')} />
             </div>
           </div>
 

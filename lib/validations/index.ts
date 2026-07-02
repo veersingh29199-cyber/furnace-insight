@@ -16,6 +16,7 @@ export const productionRecordSchema = z.object({
   work_month:         z.string().regex(/^\d{4}-\d{2}-01$/, 'YYYY-MM-01 형식이어야 합니다'),
   line_id:            requiredText,
   product_id:         z.string().optional().nullable(),
+  order_no:           z.string().optional().nullable(),
   shift:              z.enum(['day', 'night', 'both']).optional().nullable(),
   plan_ton:           positiveNum,
   actual_ton:         positiveNum,
@@ -36,6 +37,7 @@ export type ProductionRecordInput = z.infer<typeof productionRecordSchema>
 export const gasRecordSchema = z.object({
   ym:               z.string().regex(/^\d{4}-\d{2}-01$/, 'YYYY-MM-01 형식이어야 합니다'),
   furnace_id:       requiredText,
+  order_no:         z.string().optional().nullable(),
   charge_weight_kg: positiveNum,
   gas_usage:        positiveNum,
   source:           z.enum(['meter', 'bill', 'self']),
@@ -50,6 +52,7 @@ export type GasRecordInput = z.infer<typeof gasRecordSchema>
 export const gasDailyReadingSchema = z.object({
   date:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 형식이어야 합니다'),
   furnace_id: requiredText,
+  order_no:   z.string().optional().nullable(),
   shift:      z.enum(['day', 'night', 'both']),
   value:      positiveNum,
 })

@@ -84,6 +84,51 @@ export default function HelpPage() {
         </Card>
       </div>
 
+      {/* 데이터 구분 및 수주번호 관리 안내 가이드 */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-foreground">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            업로드 데이터 vs 화면 직접 입력 데이터 및 수주번호 관리 체계
+          </CardTitle>
+          <CardDescription>
+            시스템에 적재되는 데이터의 성향과 작업 건별(수주번호 기준) 이력 관리 지침입니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="p-3.5 rounded-lg border bg-muted/30 space-y-2">
+            <p className="font-bold text-primary flex items-center gap-1.5">
+              <span>📥 엑셀 일괄 업로드 대상 데이터</span>
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 leading-relaxed">
+              <li><strong>월말 생산 계획 및 집계 실적:</strong> ERP 또는 MES 시스템에서 월 단위로 내려받는 대량 실적 파일</li>
+              <li><strong>도시가스사 고지서 월 검침량:</strong> 매월 발행되는 공식 가스 요금표의 호기별 사용량 및 장입 중량</li>
+              <li><strong>특징:</strong> <code className="bg-muted px-1 rounded">[데이터 업로드]</code> 페이지에서 샘플 양식을 다운로드하여 한 번에 수십~수백 건을 등록합니다.</li>
+            </ul>
+          </div>
+          <div className="p-3.5 rounded-lg border bg-muted/30 space-y-2">
+            <p className="font-bold text-primary flex items-center gap-1.5">
+              <span>📱 화면 실시간 직접 입력 데이터</span>
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 leading-relaxed">
+              <li><strong>일별 가열로 자체 검침:</strong> 현장 실무자가 작업 전후 미터기를 확인하고 입력하는 당일 사용량</li>
+              <li><strong>교대조별 실시간 작업 실적:</strong> 주간조/야간조 작업 종료 시 입력하는 생산 톤수와 가동 시간</li>
+              <li><strong>특징:</strong> <code className="bg-muted px-1 rounded">[데이터 입력]</code> 페이지에서 날짜와 라인을 선택해 간편하게 30초 내로 기록합니다.</li>
+            </ul>
+          </div>
+          <div className="p-3.5 rounded-lg border bg-primary/10 bg-gradient-to-br from-primary/5 to-transparent space-y-2">
+            <p className="font-bold text-primary flex items-center gap-1.5">
+              <span>🏷️ 수주번호(Order No.) 활용 가이드</span>
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 leading-relaxed">
+              <li><strong>수주번호란:</strong> 단조 공장에서 진행하는 작업지시번호 또는 랏(Lot) 번호 (예: ORD-2026-001)</li>
+              <li><strong>입력 방법:</strong> 생산 실적 또는 일일 가스검침 입력 시 수주번호를 함께 입력하면 해당 작업 건에 대한 전용 기록이 생성됩니다.</li>
+              <li><strong>효과:</strong> 특정 수주 제품 생산 시 가스원단위와 시간당 생산 효율이 어떻게 나왔는지 정밀 분석이 가능해집니다.</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 용어 정의 목록 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {glossaries.map((g) => (

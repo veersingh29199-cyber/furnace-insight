@@ -36,7 +36,7 @@ export default function GasDailyForm() {
       const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
       const { error } = await supabase
         .from('gas_daily_readings')
-        .upsert({ ...data, created_by: user?.id || null, entered_by_name: opName, entered_by_shift: opShift }, { onConflict: 'date,furnace_id,shift' })
+        .upsert({ ...data, order_no: data.order_no || null, created_by: user?.id || null, entered_by_name: opName, entered_by_shift: opShift }, { onConflict: 'date,furnace_id,shift' })
       if (error) throw error
     },
     onSuccess: () => {
@@ -91,6 +91,11 @@ export default function GasDailyForm() {
               <Label>검침값 (Nm³) *</Label>
               <Input type="number" step="1" min="0" placeholder="0" {...register('value')} />
               {errors.value && <p className="text-xs text-destructive">{errors.value.message}</p>}
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+              <Label>수주번호 / 작업번호 (선택)</Label>
+              <Input placeholder="예: ORD-2607-01" {...register('order_no')} />
             </div>
           </div>
 

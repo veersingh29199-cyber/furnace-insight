@@ -49,6 +49,7 @@ export function useUpsertGasRecord() {
 
       const payload = {
         ...input,
+        order_no: input.order_no || null,
         created_by: user?.id || null,
         entered_by_name: opName,
         entered_by_shift: opShift,

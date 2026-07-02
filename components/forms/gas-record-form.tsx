@@ -55,7 +55,7 @@ export default function GasRecordForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* 기본 정보 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1">
                 검침 월 <span className="text-destructive">*</span>
@@ -97,6 +97,14 @@ export default function GasRecordForm() {
                   <SelectItem value="self">자체검침</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                수주번호 / 랏 (선택)
+                <InfoTooltip content="해당 월 검침 기간에 대표적으로 가동된 수주번호 또는 참고 랏번호를 기입합니다." />
+              </Label>
+              <Input placeholder="예: ORD-2607-01" {...register('order_no')} />
             </div>
           </div>
 

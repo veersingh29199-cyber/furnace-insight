@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFurnaces, useLines } from '@/hooks/use-dashboard'
 import {
   Upload, FileSpreadsheet, CheckCircle2, XCircle,
-  AlertTriangle, Info, Loader2, Eye
+  AlertTriangle, Info, Loader2, Eye, Download
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { kgToTon } from '@/lib/utils'
@@ -31,6 +31,7 @@ interface ProdRow {
   ym:        string
   planTon:   number
   actualTon: number
+  orderNo?:  string
 }
 
 interface ParsedData {
@@ -48,6 +49,31 @@ export default function ImportPage() {
   const [progress, setProgress]   = useState(0)
   const [importDone, setImportDone] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const downloadGasSampleExcel = () => {
+    const wsData = [
+      ['가열로호기', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월', '1월_장입중량', '2월_장입중량'],
+      ['1호기', 45000, 48000, 52000, 49000, 51000, 53000, 50000, 49000, 54000, 56000, 58000, 55000, 250000, 260000],
+      ['2호기', 38000, 41000, 43000, 40000, 42000, 44000, 41000, 40000, 45000, 47000, 49000, 46000, 210000, 220000],
+    ]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    XLSX.utils.book_append_sheet(wb, ws, `${new Date().getFullYear()}`)
+    XLSX.writeFile(wb, '가스검침_및_장입량_샘플양식.xlsx')
+  }
+
+  const downloadProdSampleExcel = () => {
+    const wsData = [
+      ['작업년월', '라인코드', '수주번호', '목표(톤)', '실적(톤)'],
+      [`${new Date().getFullYear()}-06`, 'P5', 'ORD-202606-001', 1400, 1420],
+      [`${new Date().getFullYear()}-06`, 'P8', 'ORD-202606-002', 1000, 990],
+      [`${new Date().getFullYear()}-06`, 'P15', 'ORD-202606-003', 1200, 1180],
+    ]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    XLSX.utils.book_append_sheet(wb, ws, '생산실적_수주목록')
+    XLSX.writeFile(wb, '생산실적_수주번호포함_샘플양식.xlsx')
+  }
 
   // ─── 가스 엑셀 파싱 (연도별 시트, 행=호기, 열=1~12월) ───
   const parseGasExcel = (workbook: XLSX.WorkBook, sheetName: string): ParsedData => {
@@ -104,7 +130,32 @@ export default function ImportPage() {
     const yearMatch = sheetName.match(/(\d{4})/)
     const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
 
-    // 목표·실적 쌍 파싱: "P5 목표", "P5 실적" 또는 "목표" "실적" 교대
+    // 1. 리스트형 포맷 판별 (첫 행에 작업년월, 라인코드, 수주번호 등이 있는 경우)
+    const headerStr = (raw[0] || []).join(' ').trim()
+    if (headerStr.includes('작업년월') || headerStr.includes('수주번호') || headerStr.includes('라인코드')) {
+      raw.forEach((row, rowIdx) => {
+        if (rowIdx === 0) return
+        const ymStr = String(row[0] ?? '').trim()
+        const lineStr = String(row[1] ?? '').trim()
+        if (!ymStr || !lineStr) return
+
+        const orderStr = String(row[2] ?? '').trim()
+        const planVal = parseFloat(String(row[3] ?? '0').replace(/,/g, '')) || 0
+        const actualVal = parseFloat(String(row[4] ?? '0').replace(/,/g, '')) || 0
+
+        rows.push({
+          lineCode: lineStr,
+          ym: ymStr.length === 7 ? `${ymStr}-01` : ymStr,
+          planTon: planVal,
+          actualTon: actualVal,
+          orderNo: orderStr || undefined,
+        })
+      })
+      if (rows.length === 0) errors.push('리스트 데이터 행을 찾을 수 없습니다.')
+      return { type: 'production', rows, errors, sheetName }
+    }
+
+    // 2. 월간 목표·실적 매트릭스 쌍 파싱: "P5 목표", "P5 실적"
     const planMap: Record<string, Record<number, number>> = {}
     const actualMap: Record<string, Record<number, number>> = {}
 
@@ -351,11 +402,16 @@ export default function ImportPage() {
         <TabsContent value="gas" className="space-y-4 mt-4">
           {/* 파일 업로드 영역 */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">엑셀 파일 선택</CardTitle>
-              <CardDescription>
-                .xlsx 또는 .xls 파일을 선택하세요. 파싱 결과를 미리보기 후 적재합니다.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <div>
+                <CardTitle className="text-base">엑셀 파일 선택</CardTitle>
+                <CardDescription className="mt-1">
+                  .xlsx 또는 .xls 파일을 선택하세요. 파싱 결과를 미리보기 후 적재합니다.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={downloadGasSampleExcel} className="shrink-0 gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> 가스 샘플 양식 다운로드
+              </Button>
             </CardHeader>
             <CardContent>
               <div
@@ -501,21 +557,29 @@ export default function ImportPage() {
         <TabsContent value="production" className="space-y-4 mt-4">
           <Alert className="border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-sm">
-              <strong>생산 실적 엑셀 포맷:</strong> 첫 열에{' '}
-              <code className="bg-muted px-1 rounded text-xs">P5 목표</code>,{' '}
-              <code className="bg-muted px-1 rounded text-xs">P5 실적</code>{' '}
-              또는 <code className="bg-muted px-1 rounded text-xs">P5</code> 형식으로 라인 코드를 입력하고,
-              2~13열에 1~12월 값(톤)을 입력하세요. 시트 이름에 연도(예:{' '}
-              <code className="bg-muted px-1 rounded text-xs">2024</code>)를 포함하면 자동 인식합니다.
+            <AlertDescription className="text-sm space-y-1">
+              <div>
+                <strong>생산 실적 엑셀 2가지 지원 포맷:</strong>
+              </div>
+              <ul className="list-disc list-inside text-xs space-y-0.5 text-muted-foreground">
+                <li><strong>포맷 A (수주 목록형 - 권장):</strong> 첫 행에 <code className="bg-muted px-1 rounded">작업년월, 라인코드, 수주번호, 목표(톤), 실적(톤)</code> 열을 배치하고 수주 건별로 작성</li>
+                <li><strong>포맷 B (월간 매트릭스형):</strong> 첫 열에 <code className="bg-muted px-1 rounded">P5 목표</code>, <code className="bg-muted px-1 rounded">P5 실적</code> 입력 후 2~13열에 1~12월 중량 입력</li>
+              </ul>
             </AlertDescription>
           </Alert>
 
           {/* 파일 업로드 */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">생산 실적 엑셀 파일 선택</CardTitle>
-              <CardDescription>.xlsx 또는 .xls 파일을 선택하세요. 파싱 결과를 미리보기 후 적재합니다.</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <div>
+                <CardTitle className="text-base">생산 실적 엑셀 파일 선택</CardTitle>
+                <CardDescription className="mt-1">
+                  .xlsx 또는 .xls 파일을 선택하세요. 수주번호 포함 리스트 양식을 자동 지원합니다.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={downloadProdSampleExcel} className="shrink-0 gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> 생산 실적 샘플 양식 다운로드
+              </Button>
             </CardHeader>
             <CardContent>
               <div
@@ -573,6 +637,7 @@ export default function ImportPage() {
                         <TableRow>
                           <TableHead>라인</TableHead>
                           <TableHead>년월</TableHead>
+                          <TableHead>수주번호</TableHead>
                           <TableHead className="text-right">목표 (톤)</TableHead>
                           <TableHead className="text-right">실적 (톤)</TableHead>
                           <TableHead>매핑 결과</TableHead>
@@ -585,6 +650,7 @@ export default function ImportPage() {
                             <TableRow key={i}>
                               <TableCell className="font-medium">{row.lineCode}</TableCell>
                               <TableCell>{row.ym.substring(0, 7)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{row.orderNo || '-'}</TableCell>
                               <TableCell className="text-right">{row.planTon.toLocaleString('ko-KR')}</TableCell>
                               <TableCell className="text-right">{row.actualTon.toLocaleString('ko-KR')}</TableCell>
                               <TableCell>
