@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useMemo, useEffect } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -143,59 +144,168 @@ const CustomGasTooltip = ({ active, payload, label }: {
 }
 
 export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTrendChartProps) {
-  const sortedCodes = [...furnaceCodes].sort((a, b) => {
+  const sortedCodes = useMemo(() => [...furnaceCodes].sort((a, b) => {
     const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0
     const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0
     return numA - numB
-  })
+  }), [furnaceCodes])
+
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+  const [hoveredCode, setHoveredCode] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (selectedCodes.length === 0 && sortedCodes.length > 0) {
+      setSelectedCodes(sortedCodes)
+    }
+  }, [sortedCodes])
+
+  const toggleCode = (code: string) => {
+    setSelectedCodes(prev => {
+      if (prev.includes(code)) {
+        // 최소 1개는 켜져있게 유지
+        if (prev.length === 1) return prev
+        return prev.filter(c => c !== code)
+      }
+      return [...prev, code]
+    })
+  }
+
+  const selectGroup = (type: 'all' | 'top5' | 'mid' | 'high') => {
+    if (type === 'all') setSelectedCodes(sortedCodes)
+    else if (type === 'top5') setSelectedCodes(sortedCodes.slice(0, 5))
+    else if (type === 'mid') setSelectedCodes(sortedCodes.filter(c => {
+      const n = parseInt(c.replace(/[^0-9]/g, '')) || 0
+      return n >= 6 && n <= 13
+    }))
+    else if (type === 'high') setSelectedCodes(sortedCodes.filter(c => {
+      const n = parseInt(c.replace(/[^0-9]/g, '')) || 0
+      return n >= 14
+    }))
+  }
 
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-sm font-semibold">가열로별 가스원단위 추이</CardTitle>
-        <CardDescription className="text-xs">낮을수록 연료 효율이 좋습니다 (단위: Nm³/톤)</CardDescription>
-      </CardHeader>
-      <CardContent className="px-2 sm:px-6">
-        <div className="h-[250px] sm:h-[280px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              domain={['auto', 'auto']}
-              tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip content={<CustomGasTooltip />} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
-            {targetValue && (
-              <ReferenceLine
-                y={targetValue}
-                stroke="var(--destructive)"
-                strokeDasharray="5 5"
-                label={{ value: `목표 ${targetValue}`, fill: 'var(--destructive)', fontSize: 10, position: 'right' }}
-              />
-            )}
-            {sortedCodes.map((code, i) => (
-              <Line
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-sm font-bold">가열로별 가스원단위 추이</CardTitle>
+            <CardDescription className="text-xs">
+              낮을수록 연료 효율이 좋습니다 (단위: Nm³/톤). 아래 칩을 클릭하여 호기를 끄거나 켤 수 있습니다.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => selectGroup('all')}
+              className="text-[11px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 font-medium transition-colors"
+            >
+              전체 보기 ({sortedCodes.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => selectGroup('top5')}
+              className="text-[11px] px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 font-medium transition-colors"
+            >
+              1~6호기
+            </button>
+            <button
+              type="button"
+              onClick={() => selectGroup('mid')}
+              className="text-[11px] px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 font-medium transition-colors"
+            >
+              8~13호기
+            </button>
+            <button
+              type="button"
+              onClick={() => selectGroup('high')}
+              className="text-[11px] px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 font-medium transition-colors"
+            >
+              14~20호기
+            </button>
+          </div>
+        </div>
+
+        {/* 인터랙티브 호기 필터 & 선택 칩 */}
+        <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-border/40 mt-2">
+          {sortedCodes.map((code, i) => {
+            const color = GAS_COLORS[i % GAS_COLORS.length]
+            const isSelected = selectedCodes.includes(code)
+            const isHovered = hoveredCode === code
+            return (
+              <button
                 key={code}
-                type="monotone"
-                dataKey={code}
-                name={code}
-                stroke={GAS_COLORS[i % GAS_COLORS.length]}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                connectNulls
+                type="button"
+                onClick={() => toggleCode(code)}
+                onMouseEnter={() => setHoveredCode(code)}
+                onMouseLeave={() => setHoveredCode(null)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+                  isSelected
+                    ? 'shadow-sm'
+                    : 'opacity-35 hover:opacity-75 bg-transparent border-dashed border-muted-foreground/30'
+                } ${isHovered ? 'scale-105 ring-2 ring-primary/60 z-10' : ''}`}
+                style={{
+                  backgroundColor: isSelected ? `${color}15` : undefined,
+                  borderColor: isSelected ? color : undefined,
+                  color: isSelected ? color : 'var(--muted-foreground)'
+                }}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                {code}
+              </button>
+            )
+          })}
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-2 sm:px-6 pt-2">
+        <div className="h-[270px] sm:h-[320px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                tickLine={false}
+                axisLine={false}
               />
-            ))}
-          </ComposedChart>
-        </ResponsiveContainer>
+              <YAxis
+                domain={['auto', 'auto']}
+                tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip content={<CustomGasTooltip />} />
+              {targetValue && (
+                <ReferenceLine
+                  y={targetValue}
+                  stroke="var(--destructive)"
+                  strokeDasharray="5 5"
+                  label={{ value: `목표 ${targetValue}`, fill: 'var(--destructive)', fontSize: 10, position: 'right' }}
+                />
+              )}
+              {sortedCodes.map((code, i) => {
+                const isSelected = selectedCodes.includes(code)
+                if (!isSelected) return null
+
+                const isHovered = hoveredCode === code
+                const isAnyHovered = hoveredCode !== null
+
+                return (
+                  <Line
+                    key={code}
+                    type="monotone"
+                    dataKey={code}
+                    name={code}
+                    stroke={GAS_COLORS[i % GAS_COLORS.length]}
+                    strokeWidth={isHovered ? 3.5 : 2}
+                    strokeOpacity={isAnyHovered && !isHovered ? 0.2 : 1}
+                    dot={isHovered ? { r: 5, strokeWidth: 2 } : { r: 2.5 }}
+                    connectNulls
+                  />
+                )
+              })}
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </CardContent>
     </Card>
