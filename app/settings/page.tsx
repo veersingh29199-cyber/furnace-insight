@@ -18,45 +18,40 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />
-        <AlertDescription className="text-sm">
-          <strong>관리/설정</strong> 메뉴는 <strong>admin</strong> 권한이 필요합니다.
-          현재 권한: <strong>{profile?.role ?? '로딩중'}</strong>
+        <AlertDescription className="text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <span>
+            <strong>현장 개방형 설정 모드:</strong> 데이터 입력자 성명을 자유롭게 변경하거나 프리셋/목표를 조작할 수 있습니다.
+          </span>
+          <span className="text-xs font-mono bg-background px-2 py-1 rounded border">
+            현재 권한: {profile?.role ?? 'viewer (개방 설정 가능)'}
+          </span>
         </AlertDescription>
       </Alert>
 
-      {!isAdmin ? (
-        <Alert className="border-destructive/40 bg-destructive/5">
-          <Shield className="h-4 w-4 text-destructive" />
-          <AlertDescription className="text-sm text-destructive">
-            관리자 권한이 없습니다. 관리자에게 권한 요청을 해주세요.
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <Tabs defaultValue="master">
-          <TabsList className="grid grid-cols-4 w-full max-w-lg">
-            <TabsTrigger value="master">마스터 데이터</TabsTrigger>
-            <TabsTrigger value="targets">목표 설정</TabsTrigger>
-            <TabsTrigger value="operators">입력자 관리</TabsTrigger>
-            <TabsTrigger value="users">사용자 관리</TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="operators">
+        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsTrigger value="operators">입력자 관리</TabsTrigger>
+          <TabsTrigger value="master">마스터 데이터</TabsTrigger>
+          <TabsTrigger value="targets">목표 설정</TabsTrigger>
+          <TabsTrigger value="users">사용자 관리</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="master" className="mt-4">
-            <MasterDataPanel />
-          </TabsContent>
+        <TabsContent value="operators" className="mt-4">
+          <OperatorsPanel />
+        </TabsContent>
 
-          <TabsContent value="targets" className="mt-4">
-            <TargetsPanel />
-          </TabsContent>
+        <TabsContent value="master" className="mt-4">
+          <MasterDataPanel />
+        </TabsContent>
 
-          <TabsContent value="operators" className="mt-4">
-            <OperatorsPanel />
-          </TabsContent>
+        <TabsContent value="targets" className="mt-4">
+          <TargetsPanel />
+        </TabsContent>
 
-          <TabsContent value="users" className="mt-4">
-            <UsersPanel />
-          </TabsContent>
-        </Tabs>
-      )}
+        <TabsContent value="users" className="mt-4">
+          <UsersPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
