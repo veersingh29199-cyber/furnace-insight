@@ -23,11 +23,19 @@ interface GasRow {
   furnaceCode: string
   ym:          string
   gasUsage:    number
+  chargeWeightKg?: number
+}
+
+interface ProdRow {
+  lineCode:  string
+  ym:        string
+  planTon:   number
+  actualTon: number
 }
 
 interface ParsedData {
   type:    'gas' | 'production'
-  rows:    GasRow[]
+  rows:    GasRow[] | ProdRow[]
   errors:  string[]
   sheetName: string
 }
@@ -58,15 +66,18 @@ export default function ImportPage() {
       const furnaceCode = String(row[0] ?? '').trim()
       if (!furnaceCode || !furnaceCode.includes('호기')) return
 
-      // 1~12월 열 (인덱스 1~12)
+      // 1~12월 열 (인덱스 1~12: 가스사용량, 인덱스 13~24: 장입중량 선택적 파싱)
       for (let month = 1; month <= 12; month++) {
         const cellVal = row[month]
         const numVal  = parseFloat(String(cellVal ?? '').replace(/,/g, ''))
+        const weightCell = row[month + 12]
+        const numWeight = parseFloat(String(weightCell ?? '').replace(/,/g, ''))
         if (!isNaN(numVal) && numVal > 0) {
           rows.push({
             furnaceCode,
             ym:       `${year}-${String(month).padStart(2, '0')}-01`,
             gasUsage: numVal,
+            chargeWeightKg: !isNaN(numWeight) && numWeight > 0 ? numWeight : 0,
           })
         }
       }
@@ -79,8 +90,85 @@ export default function ImportPage() {
     return { type: 'gas', rows, errors, sheetName }
   }
 
-  // ─── 파일 선택 핸들러 ───
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ─── 생산 실적 엑셀 파싱 (연도별 시트, 행=라인, 열=1~12월) ───
+  // 지원 포맷:
+  //   1열: 라인 코드 (P5, P8, P15, R/M 등) + " 목표"/"실적" suffix 또는 2행으로 분리
+  //   2~13열: 1월~12월 값 (톤)
+  const parseProdExcel = (workbook: XLSX.WorkBook, sheetName: string): ParsedData => {
+    const ws  = workbook.Sheets[sheetName]
+    const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as string[][]
+
+    const rows: ProdRow[] = []
+    const errors: string[] = []
+
+    const yearMatch = sheetName.match(/(\d{4})/)
+    const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+
+    // 목표·실적 쌍 파싱: "P5 목표", "P5 실적" 또는 "목표" "실적" 교대
+    const planMap: Record<string, Record<number, number>> = {}
+    const actualMap: Record<string, Record<number, number>> = {}
+
+    raw.forEach((row, rowIdx) => {
+      if (rowIdx === 0) return
+      const cell = String(row[0] ?? '').trim()
+      if (!cell) return
+
+      // 라인 코드 추출 (P5, P8, P15, R/M, 링밀 등)
+      const lineCodes = ['P5', 'P8', 'P15', 'R/M', 'RM', '링밀']
+      const matchedCode = lineCodes.find(c => cell.includes(c))
+      if (!matchedCode) return
+
+      const lineCode = matchedCode === 'RM' ? 'R/M' : matchedCode
+      const isPlan = cell.includes('목표') || cell.includes('PLAN') || cell.includes('plan')
+      const isActual = cell.includes('실적') || cell.includes('ACTUAL') || cell.includes('actual')
+
+      for (let month = 1; month <= 12; month++) {
+        const cellVal = row[month]
+        const numVal  = parseFloat(String(cellVal ?? '').replace(/,/g, ''))
+        if (isNaN(numVal) || numVal <= 0) continue
+
+        if (isPlan) {
+          if (!planMap[lineCode]) planMap[lineCode] = {}
+          planMap[lineCode][month] = numVal
+        } else if (isActual) {
+          if (!actualMap[lineCode]) actualMap[lineCode] = {}
+          actualMap[lineCode][month] = numVal
+        } else {
+          // suffix 없으면 실적으로 간주
+          if (!actualMap[lineCode]) actualMap[lineCode] = {}
+          actualMap[lineCode][month] = numVal
+        }
+      }
+    })
+
+    // planMap과 actualMap을 합쳐 ProdRow 생성
+    const allLineCodes = new Set([...Object.keys(planMap), ...Object.keys(actualMap)])
+    allLineCodes.forEach(code => {
+      for (let month = 1; month <= 12; month++) {
+        const plan   = planMap[code]?.[month] ?? 0
+        const actual = actualMap[code]?.[month] ?? 0
+        if (plan > 0 || actual > 0) {
+          rows.push({
+            lineCode:  code,
+            ym:        `${year}-${String(month).padStart(2, '0')}-01`,
+            planTon:   plan,
+            actualTon: actual,
+          })
+        }
+      }
+    })
+
+    if (rows.length === 0) {
+      errors.push(
+        '인식된 데이터 행이 없습니다. 첫 번째 열에 "P5 목표", "P5 실적" 또는 "P5" 형식이 있는지 확인하세요.'
+      )
+    }
+
+    return { type: 'production', rows, errors, sheetName }
+  }
+
+  // ─── 파일 선택 핸들러 (가스) ───
+  const handleGasFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
@@ -100,6 +188,93 @@ export default function ImportPage() {
     reader.readAsArrayBuffer(file)
   }
 
+  // ─── 파일 선택 핸들러 (생산 실적) ───
+  const prodFileRef = useRef<HTMLInputElement>(null)
+  const [parsedProd, setParsedProd] = useState<ParsedData | null>(null)
+  const [importingProd, setImportingProd] = useState(false)
+  const [progressProd, setProgressProd]   = useState(0)
+  const [importDoneProd, setImportDoneProd] = useState(false)
+
+  const handleProdFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer)
+        const wb   = XLSX.read(data, { type: 'array' })
+        const sheetName = wb.SheetNames[0]
+        const result = parseProdExcel(wb, sheetName)
+        setParsedProd(result)
+        setImportDoneProd(false)
+        setProgressProd(0)
+      } catch (err) {
+        toast.error('파일 파싱 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'))
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  // ─── 생산 실적 DB 적재 ───
+  const handleImportProd = async () => {
+    if (!parsedProd || !lines) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    setImportingProd(true)
+    setProgressProd(0)
+
+    const prodRows = parsedProd.rows as ProdRow[]
+    const total  = prodRows.length
+    let success  = 0
+    let fail     = 0
+    const batchSize = 20
+
+    for (let i = 0; i < total; i += batchSize) {
+      const batch = prodRows.slice(i, i + batchSize)
+
+      const upsertRows = batch
+        .map(row => {
+          const line = lines.find(l => l.code === row.lineCode)
+          if (!line) { fail++; return null }
+          return {
+            work_month:  row.ym,
+            line_id:     line.id,
+            product_id:  null,
+            shift:       'both' as const,
+            plan_ton:    row.planTon,
+            actual_ton:  row.actualTon,
+            hwangji_ton: 0,
+            cogging_ton: 0,
+            rework_self_ton: 0,
+            rework_quality_ton: 0,
+            work_hours:  0,
+            work_count:  0,
+            created_by:  user?.id || null,
+          }
+        })
+        .filter(Boolean)
+
+      if (upsertRows.length > 0) {
+        const { error } = await supabase
+          .from('production_records')
+          .upsert(upsertRows as never[], { onConflict: 'work_month,line_id,product_id,shift', ignoreDuplicates: false })
+
+        if (error) fail += upsertRows.length
+        else success += upsertRows.length
+      }
+
+      setProgressProd(Math.round(((i + batchSize) / total) * 100))
+    }
+
+    setImportingProd(false)
+    setImportDoneProd(true)
+    toast.success(`생산 실적 적재 완료: 성공 ${success}건, 실패 ${fail}건`)
+  }
+
+  // ─── 파일 선택 핸들러 (가스 — 구 handleFile) ───
+  const handleFile = handleGasFile
+
   // ─── DB 적재 ───
   const handleImport = async () => {
     if (!parsed || !furnaces) return
@@ -111,13 +286,14 @@ export default function ImportPage() {
     setImporting(true)
     setProgress(0)
 
-    const total  = parsed.rows.length
+    const gasRows = parsed.rows as GasRow[]
+    const total  = gasRows.length
     let success  = 0
     let fail     = 0
     const batchSize = 20
 
     for (let i = 0; i < total; i += batchSize) {
-      const batch = parsed.rows.slice(i, i + batchSize)
+      const batch = gasRows.slice(i, i + batchSize)
 
       const upsertRows = batch
         .map(row => {
@@ -129,7 +305,7 @@ export default function ImportPage() {
             ym:               row.ym,
             furnace_id:       furnace.id,
             gas_usage:        row.gasUsage,
-            charge_weight_kg: 0,  // 장입량은 별도 입력 필요
+            charge_weight_kg: row.chargeWeightKg ?? 0,
             source:           'bill' as const,
             created_by:       user?.id || null,
             entered_by_name:  opName,
@@ -241,11 +417,12 @@ export default function ImportPage() {
                           <TableHead>가열로</TableHead>
                           <TableHead>년월</TableHead>
                           <TableHead className="text-right">가스사용량 (Nm³)</TableHead>
+                          <TableHead className="text-right">장입량 (kg)</TableHead>
                           <TableHead>매핑 결과</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {parsed.rows.slice(0, 20).map((row, i) => {
+                        {(parsed.rows as GasRow[]).slice(0, 20).map((row, i) => {
                           const matched = furnaces?.find(
                             f => f.code === row.furnaceCode || f.name === row.furnaceCode
                           )
@@ -254,6 +431,7 @@ export default function ImportPage() {
                               <TableCell className="font-medium">{row.furnaceCode}</TableCell>
                               <TableCell>{row.ym.substring(0, 7)}</TableCell>
                               <TableCell className="text-right">{row.gasUsage.toLocaleString('ko-KR')}</TableCell>
+                              <TableCell className="text-right">{row.chargeWeightKg && row.chargeWeightKg > 0 ? row.chargeWeightKg.toLocaleString('ko-KR') : '-'}</TableCell>
                               <TableCell>
                                 {matched ? (
                                   <Badge variant="secondary" className="gap-1">
@@ -320,19 +498,152 @@ export default function ImportPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="production" className="mt-4">
+        <TabsContent value="production" className="space-y-4 mt-4">
+          <Alert className="border-primary/30 bg-primary/5">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-sm">
+              <strong>생산 실적 엑셀 포맷:</strong> 첫 열에{' '}
+              <code className="bg-muted px-1 rounded text-xs">P5 목표</code>,{' '}
+              <code className="bg-muted px-1 rounded text-xs">P5 실적</code>{' '}
+              또는 <code className="bg-muted px-1 rounded text-xs">P5</code> 형식으로 라인 코드를 입력하고,
+              2~13열에 1~12월 값(톤)을 입력하세요. 시트 이름에 연도(예:{' '}
+              <code className="bg-muted px-1 rounded text-xs">2024</code>)를 포함하면 자동 인식합니다.
+            </AlertDescription>
+          </Alert>
+
+          {/* 파일 업로드 */}
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <FileSpreadsheet className="h-10 w-10 text-muted-foreground/30" />
-              <div>
-                <p className="font-medium text-muted-foreground">생산 실적 엑셀 임포터</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  월별 행, 라인별(P5/P8/P15/R/M) 목표/실적/황지/COGGING 형식을 지원합니다.
-                  <br />개발 진행 중입니다. 현재는 <a href="/data-entry" className="text-primary underline">데이터 입력</a> 메뉴를 이용해 주세요.
-                </p>
+            <CardHeader>
+              <CardTitle className="text-base">생산 실적 엑셀 파일 선택</CardTitle>
+              <CardDescription>.xlsx 또는 .xls 파일을 선택하세요. 파싱 결과를 미리보기 후 적재합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div
+                className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                onClick={() => prodFileRef.current?.click()}
+              >
+                <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm font-medium">파일을 클릭하여 선택하거나 드래그하세요</p>
+                <p className="text-xs text-muted-foreground mt-1">지원 형식: .xlsx, .xls</p>
+                <input
+                  ref={prodFileRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleProdFile}
+                />
               </div>
             </CardContent>
           </Card>
+
+          {/* 파싱 결과 미리보기 */}
+          {parsedProd && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Eye className="h-4 w-4" /> 파싱 결과 미리보기
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      시트: {parsedProd.sheetName} |{' '}
+                      <span className="text-primary font-medium">{parsedProd.rows.length}건</span> 인식됨
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {parsedProd.errors.length > 0 && (
+                      <Badge variant="destructive">{parsedProd.errors.length} 오류</Badge>
+                    )}
+                    <Badge variant="secondary">{parsedProd.rows.length} 행</Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {parsedProd.errors.map((err, i) => (
+                  <Alert key={i} className="border-destructive/40 bg-destructive/5">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <AlertDescription className="text-sm">{err}</AlertDescription>
+                  </Alert>
+                ))}
+
+                {parsedProd.rows.length > 0 && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>라인</TableHead>
+                          <TableHead>년월</TableHead>
+                          <TableHead className="text-right">목표 (톤)</TableHead>
+                          <TableHead className="text-right">실적 (톤)</TableHead>
+                          <TableHead>매핑 결과</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(parsedProd.rows as ProdRow[]).slice(0, 20).map((row, i) => {
+                          const matched = lines?.find(l => l.code === row.lineCode)
+                          return (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{row.lineCode}</TableCell>
+                              <TableCell>{row.ym.substring(0, 7)}</TableCell>
+                              <TableCell className="text-right">{row.planTon.toLocaleString('ko-KR')}</TableCell>
+                              <TableCell className="text-right">{row.actualTon.toLocaleString('ko-KR')}</TableCell>
+                              <TableCell>
+                                {matched ? (
+                                  <Badge variant="secondary" className="gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                    {matched.name}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive" className="gap-1">
+                                    <XCircle className="h-3 w-3" />
+                                    매핑 실패
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                    {parsedProd.rows.length > 20 && (
+                      <p className="text-xs text-muted-foreground text-center py-2">
+                        ... 외 {parsedProd.rows.length - 20}건 더 있음
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {importingProd && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>적재 중...</span>
+                      <span>{progressProd}%</span>
+                    </div>
+                    <Progress value={progressProd} />
+                  </div>
+                )}
+
+                {importDoneProd && (
+                  <Alert className="border-green-500/40 bg-green-500/5">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertDescription className="text-sm text-green-700 dark:text-green-400">
+                      생산 실적 적재가 완료되었습니다. 생산성 분석 화면에서 결과를 확인하세요.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {parsedProd.rows.length > 0 && !importDoneProd && (
+                  <Button onClick={handleImportProd} disabled={importingProd} className="w-full sm:w-auto">
+                    {importingProd ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />적재 중 ({progressProd}%)...</>
+                    ) : (
+                      <><Upload className="mr-2 h-4 w-4" />DB에 적재 ({parsedProd.rows.length}건)</>
+                    )}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

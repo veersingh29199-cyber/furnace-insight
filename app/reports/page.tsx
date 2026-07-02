@@ -102,9 +102,8 @@ export default function ReportsPage() {
     const benchmarks = Object.entries(doosanBm).map(([prod, bm]) => {
       // 실적에서 해당 재질/제품군 평균 TPH 추출
       const matched = prodRecords.filter((r) => r.product_name?.includes(prod))
-      const avgTph = matched.length > 0
-        ? matched.reduce((s, curr) => s + Number(curr.actual_ton || 0) / Math.max(1, Number(curr.work_hours || 1)), 0) / matched.length
-        : bm * 0.82 // 실측 데이터 부족 시 시뮬레이션 평균
+      if (matched.length === 0) return null // 실측 데이터 없으면 제외
+      const avgTph = matched.reduce((s, curr) => s + Number(curr.actual_ton || 0) / Math.max(1, Number(curr.work_hours || 1)), 0) / matched.length
       return {
         productName: prod,
         actualTph: avgTph,
@@ -133,18 +132,17 @@ export default function ReportsPage() {
       `두산 벤치마크 대비 크랭크축 및 금형강 공정에서 시간당 생산량 개선 여지가 15~20% 존재합니다.`,
     ]
 
-    return { yearly, benchmarks, realistic, comments }
+    const validBenchmarks = benchmarks.filter((b): b is NonNullable<typeof b> => b !== null)
+
+    return { yearly, benchmarks: validBenchmarks, realistic, comments }
   }, [prodRecords, selectedYear])
 
   // 3. 가스원단위 집계 분석
   const gasStats = useMemo(() => {
-    // 월별 전사 추이
-    const monthly = (companyGas && companyGas.length > 0 ? companyGas : [
-      { ym: `${selectedYear}-01`, gas_usage: 450000, charge_weight_kg: 2700000 },
-      { ym: `${selectedYear}-02`, gas_usage: 420000, charge_weight_kg: 2650000 },
-      { ym: `${selectedYear}-03`, gas_usage: 480000, charge_weight_kg: 2900000 },
-    ]).map((item) => {
-      const actualUnit = Number(item.charge_weight_kg || 0) > 0 ? Number(item.gas_usage || 0) / (Number(item.charge_weight_kg) / 1000) : 165
+    // 월별 전사 추이 (실데이터 없으면 빈 배열)
+    const monthly = (companyGas && companyGas.length > 0 ? companyGas : []).map((item) => {
+      const actualUnit = Number(item.charge_weight_kg || 0) > 0 ? Number(item.gas_usage || 0) / (Number(item.charge_weight_kg) / 1000) : null
+      if (actualUnit === null) return null
       return {
         ym: item.ym,
         actualUnit,
@@ -164,7 +162,8 @@ export default function ReportsPage() {
     })
 
     const furnaceStats = Object.values(fMap).map((f) => {
-      const avgUnit = f.weight > 0 ? f.usage / (f.weight / 1000) : 162
+      const avgUnit = f.weight > 0 ? f.usage / (f.weight / 1000) : null
+      if (avgUnit === null) return null
       return {
         furnaceCode: f.name,
         avgUnit,
@@ -173,15 +172,21 @@ export default function ReportsPage() {
       }
     })
 
+    const validFurnaceStats = furnaceStats.filter((f): f is NonNullable<typeof f> => f !== null)
+
     const comments = [
       `전사 평균 가스원단위는 목표선(150 Nm³/톤) 대비 8~12% 높은 수준에서 등락하고 있습니다.`,
-      furnaceStats.filter(f => f.status === '경고').length > 0
-        ? `${furnaceStats.filter(f => f.status === '경고').map(f => f.furnaceCode).join(', ')} 호기의 단열 손실 및 버너 공기비 최적화 시급`
+      validFurnaceStats.filter(f => f.status === '경고').length > 0
+        ? `${validFurnaceStats.filter(f => f.status === '경고').map(f => f.furnaceCode).join(', ')} 호기의 단열 손실 및 버너 공기비 최적화 시급`
         : '주요 가열로의 가스원단위가 기준치 이내에서 유지되고 있습니다.',
-      `제품 Mix 시뮬레이션 결과, 고장입 중량 제품 구성비 10% 확대 시 연간 가스 비용 5.2% 절감 기대.`,
+      '제품 Mix 구성비 최적화를 통한 연간 가스 비용 절감 시뮬레이션을 권장합니다.',
     ]
 
-    return { monthly, furnaceStats, comments }
+    return {
+      monthly: monthly.filter((m): m is NonNullable<typeof m> => m !== null),
+      furnaceStats: validFurnaceStats,
+      comments,
+    }
   }, [gasRecords, companyGas, selectedYear])
 
   // 4. PPT 다운로드 실행

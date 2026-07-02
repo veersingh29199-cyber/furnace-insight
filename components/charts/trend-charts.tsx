@@ -54,9 +54,10 @@ export function ProductionTrendChart({ data, title = '생산 실적 추이', des
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
         {description && <CardDescription className="text-xs">{description}</CardDescription>}
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+      <CardContent className="px-2 sm:px-6">
+        <div className="h-[240px] sm:h-[280px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
             <XAxis
               dataKey="month"
@@ -88,6 +89,7 @@ export function ProductionTrendChart({ data, title = '생산 실적 추이', des
             <Bar dataKey="actual" name="실적"   fill="var(--chart-1)" radius={[3, 3, 0, 0]} />
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )
@@ -114,9 +116,10 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
         <CardTitle className="text-sm font-semibold">가열로별 가스원단위 추이</CardTitle>
         <CardDescription className="text-xs">낮을수록 연료 효율이 좋습니다 (단위: Nm³/톤)</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+      <CardContent className="px-2 sm:px-6">
+        <div className="h-[250px] sm:h-[280px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
             <XAxis
               dataKey="month"
@@ -162,6 +165,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
             ))}
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )

@@ -7,6 +7,7 @@ import { Info, Shield } from 'lucide-react'
 import MasterDataPanel from '@/components/settings/master-data-panel'
 import UsersPanel      from '@/components/settings/users-panel'
 import TargetsPanel    from '@/components/settings/targets-panel'
+import OperatorsPanel  from '@/components/settings/operators-panel'
 import { useAuth } from '@/components/providers/auth-provider'
 
 export default function SettingsPage() {
@@ -32,9 +33,10 @@ export default function SettingsPage() {
         </Alert>
       ) : (
         <Tabs defaultValue="master">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="master">마스터 데이터</TabsTrigger>
             <TabsTrigger value="targets">목표 설정</TabsTrigger>
+            <TabsTrigger value="operators">입력자 관리</TabsTrigger>
             <TabsTrigger value="users">사용자 관리</TabsTrigger>
           </TabsList>
 
@@ -44,6 +46,10 @@ export default function SettingsPage() {
 
           <TabsContent value="targets" className="mt-4">
             <TargetsPanel />
+          </TabsContent>
+
+          <TabsContent value="operators" className="mt-4">
+            <OperatorsPanel />
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useProductionRecords, useProductionTrend } from '@/hooks/use-production-records'
-import { useBenchmarks } from '@/hooks/use-dashboard'
+import { useBenchmarks, useLines } from '@/hooks/use-dashboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -23,9 +23,18 @@ const COLORS     = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(-
 
 export default function ProductivityPage() {
   const [selectedLine, setSelectedLine] = useState<string>('all')
-  const { data: trend }    = useProductionTrend(3)
-  const { data: records }  = useProductionRecords()
+  const { data: lines }      = useLines()
+  const { data: trend }      = useProductionTrend(3)
   const { data: benchmarks } = useBenchmarks()
+
+  // selectedLine 코드를 UUID로 변환
+  const selectedLineId = selectedLine !== 'all'
+    ? lines?.find(l => l.code === selectedLine)?.id
+    : undefined
+
+  const { data: records }  = useProductionRecords(
+    selectedLineId ? { lineId: selectedLineId } : undefined
+  )
 
   // ── 연간 추이 데이터 가공 ──
   const trendData = useMemo(() => {
@@ -170,11 +179,12 @@ export default function ProductivityPage() {
             <CardTitle className="text-sm">라인·제품별 시간당 생산량 (톤/h)</CardTitle>
             <CardDescription className="text-xs">점선 = 두산 벤치마크</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="px-2 sm:px-6">
+            <div className="h-[250px] sm:h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={tphDistrib.slice(-24)}
-                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
@@ -188,6 +198,7 @@ export default function ProductivityPage() {
                 <ReferenceLine y={26} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: '두산 크랭크축', fill: '#f59e0b', fontSize: 10 }} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

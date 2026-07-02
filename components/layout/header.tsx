@@ -36,7 +36,7 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps) {
   const { user, profile, signOut } = useAuth()
-  const { name: operatorName, shift: operatorShift, setName: setOperatorName, setShift: setOperatorShift, mounted } = useOperator()
+  const { name: operatorName, shift: operatorShift, operatorList, setName: setOperatorName, setShift: setOperatorShift, addOperatorPreset, mounted } = useOperator()
   const [dark, setDark] = useState(false)
   const [customInput, setCustomInput] = useState('')
 
@@ -58,36 +58,44 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4 lg:px-6">
       {/* 햄버거 메뉴 (모바일) */}
-      <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onMenuClick}>
-        <Menu className="h-4 w-4" />
-        <span className="sr-only">메뉴 열기</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden shrink-0"
+        onClick={onMenuClick}
+      >
+        <Menu className="h-5 w-5" />
       </Button>
 
-      {/* 페이지 제목 */}
-      <div className="flex-1 min-w-0">
-        {pageTitle && (
-          <h1 className="text-sm font-semibold truncate">{pageTitle}</h1>
-        )}
+      {/* 페이지 제목 / 설명 */}
+      <div className="flex flex-col min-w-0 flex-1">
+        <h1 className="text-sm font-semibold truncate text-foreground">
+          {pageTitle || '가열로 인사이트'}
+        </h1>
         {pageDesc && (
-          <p className="text-xs text-muted-foreground truncate hidden sm:block">{pageDesc}</p>
+          <p className="text-xs text-muted-foreground truncate hidden sm:block">
+            {pageDesc}
+          </p>
         )}
       </div>
 
-      {/* 우측 액션 */}
-      <div className="flex items-center gap-2">
-        {/* 비로그인 부서원 입력 주체 선택 (이름 + 교대조) */}
+      {/* 우측 도구 모음 */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* 현장 실무자 선택기 (상시 접근 가능) */}
         {mounted && (
-          <div className="flex items-center gap-1.5 bg-muted/50 border border-border/60 rounded-md px-2 py-1 text-xs">
+          <div className="flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1 shadow-sm">
+            <UserCheck className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs text-muted-foreground hidden md:inline">입력자:</span>
+            
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary cursor-pointer outline-none">
-                <UserCheck className="h-3.5 w-3.5 text-primary" />
-                <span className="max-w-[110px] truncate">{operatorName || '입력자 선택'}</span>
+              <DropdownMenuTrigger className="flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary transition-colors focus:outline-none">
+                <span>{operatorName}</span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="text-xs font-semibold">현장 실무자 선택</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {DEFAULT_OPERATORS.map((op) => (
+                {(operatorList || []).map((op) => (
                   <DropdownMenuItem
                     key={op}
                     className={`cursor-pointer text-xs ${operatorName === op ? 'font-bold text-primary bg-primary/10' : ''}`}
@@ -98,7 +106,7 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
                 ))}
                 <DropdownMenuSeparator />
                 <div className="p-2 space-y-1">
-                  <p className="text-[11px] text-muted-foreground">직접 입력</p>
+                  <p className="text-[11px] text-muted-foreground">직접 입력 (새 명단에 자동 추가)</p>
                   <div className="flex gap-1">
                     <Input
                       placeholder="이름 (소속)"
@@ -111,6 +119,7 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
                       className="h-7 text-xs px-2"
                       onClick={() => {
                         if (customInput.trim()) {
+                          addOperatorPreset(customInput.trim())
                           setOperatorName(customInput.trim())
                           setCustomInput('')
                         }

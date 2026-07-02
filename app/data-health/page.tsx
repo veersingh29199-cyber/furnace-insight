@@ -9,15 +9,24 @@ import { buttonVariants } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Activity, AlertTriangle, CheckCircle2, XCircle, ArrowRight, Database, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
+import { useTargets } from '@/hooks/use-dashboard'
 
 const supabase = createClient()
 
 export default function DataHealthPage() {
   const currentYear = new Date().getFullYear().toString()
+  const { data: targets } = useTargets()
+
+  // 목표치 기반 동적 임계값 산출
+  const tphTarget = targets?.find(t => t.metric === 'ton_per_hour' && t.scope === 'company')?.target_value ?? 20
+  const tphThreshold = tphTarget * 2 // 목표의 2배 초과 시 이상치 (기본 40)
+
+  const gasTarget = targets?.find(t => t.metric === 'gas_unit' && t.scope === 'company')?.target_value ?? 150
+  const gasThreshold = Math.round(gasTarget * 1.33) // 목표의 1.33배 초과 시 이상치 (기본 200)
 
   // 생산 실적 건강검진
   const { data: prodHealth, isLoading: pLoading, refetch: refetchP } = useQuery({
-    queryKey: ['health-prod', currentYear],
+    queryKey: ['health-prod', currentYear, tphThreshold],
     queryFn: async () => {
       const { data } = await supabase.from('production_records').select('*, line:lines(*)').gte('work_month', `${currentYear}-01-01`)
       const list = data || []
@@ -25,7 +34,7 @@ export default function DataHealthPage() {
       const outliers = list.filter(r => {
         const h = Number(r.work_hours || 1)
         const tph = Number(r.actual_ton || 0) / h
-        return tph > 40 // 비정상적으로 높은 TPH
+        return tph > tphThreshold // 동적 TPH 임계값
       })
       return { total: list.length, missingHours, outliers }
     },
@@ -33,7 +42,7 @@ export default function DataHealthPage() {
 
   // 가스 검침 건강검진
   const { data: gasHealth, isLoading: gLoading, refetch: refetchG } = useQuery({
-    queryKey: ['health-gas', currentYear],
+    queryKey: ['health-gas', currentYear, gasThreshold],
     queryFn: async () => {
       const { data } = await supabase.from('gas_records').select('*, furnace:furnaces(*)').gte('ym', `${currentYear}-01`)
       const list = data || []
@@ -41,7 +50,7 @@ export default function DataHealthPage() {
       const outliers = list.filter(r => {
         const w = Number(r.charge_weight_kg || 1) / 1000
         const unit = Number(r.gas_usage || 0) / w
-        return unit > 200 // 비정상 고원단위
+        return unit > gasThreshold // 동적 가스원단위 임계값
       })
       return { total: list.length, missingWeight, outliers }
     },
@@ -90,7 +99,7 @@ export default function DataHealthPage() {
               </strong>
             </div>
             <div className="flex items-center justify-between text-xs border-b pb-2">
-              <span className="text-muted-foreground">TPH 과다 이상치 (&gt; 40 t/h):</span>
+              <span className="text-muted-foreground">TPH 과다 이상치 (&gt; {tphThreshold} t/h):</span>
               <strong className={prodHealth?.outliers.length ? 'text-amber-600 font-bold' : 'text-emerald-600'}>
                 {prodHealth?.outliers.length || 0} 건
               </strong>
@@ -122,7 +131,7 @@ export default function DataHealthPage() {
               </strong>
             </div>
             <div className="flex items-center justify-between text-xs border-b pb-2">
-              <span className="text-muted-foreground">원단위 과다 이상치 (&gt; 200 Nm³/t):</span>
+              <span className="text-muted-foreground">원단위 과다 이상치 (&gt; {gasThreshold} Nm³/t):</span>
               <strong className={gasHealth?.outliers.length ? 'text-amber-600 font-bold' : 'text-emerald-600'}>
                 {gasHealth?.outliers.length || 0} 건
               </strong>

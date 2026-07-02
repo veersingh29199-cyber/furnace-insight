@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { createClient } from '@/lib/supabase/client'
 import { useGasRecords } from '@/hooks/use-gas-records'
 import { useBenchmarks, useTargets, useFurnaces, useProducts } from '@/hooks/use-dashboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -8,15 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { GasUnitTrendChart } from '@/components/charts/trend-charts'
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Cell
 } from 'recharts'
-import { Info, AlertTriangle, Calculator, Flame } from 'lucide-react'
+import { Info, AlertTriangle, Calculator, Flame, CheckCircle2, XCircle } from 'lucide-react'
 import {
   formatGasUnit, kgToTon, detectOutliers, cn
 } from '@/lib/utils'
+
+const supabase = createClient()
 
 export default function GasAnalysisPage() {
   const { data: allGas }    = useGasRecords({})
@@ -24,6 +29,14 @@ export default function GasAnalysisPage() {
   const { data: products }  = useProducts()
   const { data: benchmarks } = useBenchmarks()
   const { data: targets }    = useTargets(new Date().getFullYear())
+
+  const { data: dailyReadings } = useQuery({
+    queryKey: ['gas-daily-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('gas_daily_readings').select('*')
+      return data || []
+    },
+  })
 
   // 제품 Mix 시뮬레이터 상태
   const [mixInputs, setMixInputs] = useState<Record<string, number>>({})
@@ -80,6 +93,24 @@ export default function GasAnalysisPage() {
     ? allGas.filter(r => r.gas_unit != null).reduce((s, r) => s + (r.gas_unit ?? 0), 0) /
       allGas.filter(r => r.gas_unit != null).length
     : null
+
+  // ── 일일 검침 vs 월간 공식 검침 교차 대조 ──
+  const dailyVsMonthly = useMemo(() => {
+    if (!allGas || !furnaces) return []
+    const results: Array<{ ym: string; furnaceCode: string; officialUsage: number; dailySum: number; diff: number; diffPct: number }> = []
+
+    allGas.slice(0, 15).forEach(rec => {
+      const ymPrefix = rec.ym.substring(0, 7)
+      const furnaceCode = rec.furnace?.code || furnaces.find(f => f.id === rec.furnace_id)?.code || '-'
+      const dailyMatches = (dailyReadings || []).filter(d => d.date.startsWith(ymPrefix) && d.furnace_id === rec.furnace_id)
+      const dailySum = dailyMatches.reduce((s, d) => s + Number(d.value || 0), 0)
+      const officialUsage = Number(rec.gas_usage || 0)
+      const diff = officialUsage - dailySum
+      const diffPct = officialUsage > 0 ? (diff / officialUsage) * 100 : 0
+      results.push({ ym: ymPrefix, furnaceCode, officialUsage, dailySum, diff, diffPct })
+    })
+    return results
+  }, [allGas, furnaces, dailyReadings])
 
   return (
     <div className="space-y-6">
@@ -156,6 +187,76 @@ export default function GasAnalysisPage() {
         </div>
       </div>
 
+      {/* 일일 검침 vs 월 공식 고지서 대조 보드 */}
+      <div>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          ⚖️ 일일 자체검침 합산 vs 월 공식 고지서 대조 (교차 검증)
+        </h2>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              월간 가스 사용량 신뢰성 크로스 체크
+            </CardTitle>
+            <CardDescription className="text-xs">
+              매일 입력된 현장 검침 합산량과 월말 확정된 고지서/계량기 검침량을 대조하여 누락 및 유실을 방지합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dailyVsMonthly.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">대조할 가스 검침 내역이 없습니다.</p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="text-xs">년월</TableHead>
+                      <TableHead className="text-xs">호기</TableHead>
+                      <TableHead className="text-xs text-right">일일 검침 합산</TableHead>
+                      <TableHead className="text-xs text-right">월 공식 고지서</TableHead>
+                      <TableHead className="text-xs text-right">차이 (오차율)</TableHead>
+                      <TableHead className="text-xs text-center">검증 결과</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyVsMonthly.slice(0, 8).map((row, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs font-mono">{row.ym}</TableCell>
+                        <TableCell className="text-xs font-bold">{row.furnaceCode}</TableCell>
+                        <TableCell className="text-xs text-right font-mono">
+                          {row.dailySum > 0 ? `${row.dailySum.toLocaleString('ko-KR')} Nm³` : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono">
+                          {row.officialUsage > 0 ? `${row.officialUsage.toLocaleString('ko-KR')} Nm³` : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono">
+                          {row.officialUsage > 0 && row.dailySum > 0
+                            ? `${row.diff > 0 ? '+' : ''}${row.diff.toLocaleString('ko-KR')} (${row.diffPct > 0 ? '+' : ''}${row.diffPct.toFixed(1)}%)`
+                            : '—'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {row.officialUsage === 0 || row.dailySum === 0 ? (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">대기/누락</Badge>
+                          ) : Math.abs(row.diffPct) <= 5 ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 text-[10px] border-emerald-300">
+                              일치 (정상)
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px]">
+                              오차 확인 필요
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* 장입량 vs 원단위 산점도 */}
       <div>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -166,9 +267,10 @@ export default function GasAnalysisPage() {
             <CardTitle className="text-sm">장입량(톤) 대비 가스원단위 분포</CardTitle>
             <CardDescription className="text-xs">빨간 점 = 이상치 (IQR 기반 감지)</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <ScatterChart margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CardContent className="px-2 sm:px-6">
+            <div className="h-[250px] sm:h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis
                   type="number" dataKey="x" name="장입량"
@@ -202,6 +304,7 @@ export default function GasAnalysisPage() {
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
