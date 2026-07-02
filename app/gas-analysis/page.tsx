@@ -71,21 +71,21 @@ export default function GasAnalysisPage() {
   // 제품 Mix 시뮬레이터 상태
   const [mixInputs, setMixInputs] = useState<Record<string, number>>({})
 
-  // ── 1호기부터 20호기까지 순서대로 (결번 4호기 및 미사용 7호기 제외 총 18개 호기) ──
+  // ── 1호기부터 20호기까지 순서대로 (미사용 7호기 제외 총 19개 가동 호기) ──
   const activeFurnaceCodes = useMemo(() => {
     const set = new Set<string>()
     const defaultList = [
-      '1호기', '2호기', '3호기', '5호기', '6호기', '8호기', '9호기', '10호기',
+      '1호기', '2호기', '3호기', '4호기', '5호기', '6호기', '8호기', '9호기', '10호기',
       '11호기', '12호기', '13호기', '14호기', '15호기', '16호기', '17호기', '18호기', '19호기', '20호기'
     ]
     defaultList.forEach(c => set.add(c))
 
     furnaces?.forEach(f => {
-      if (f.code && f.code !== '4호기' && f.code !== '7호기') set.add(f.code)
+      if (f.code && f.code !== '7호기') set.add(f.code)
     })
     allGas?.forEach(r => {
       const c = getFurnaceCode(r)
-      if (c && c !== '-' && c !== '4호기' && c !== '7호기') set.add(c)
+      if (c && c !== '-' && c !== '7호기') set.add(c)
     })
 
     return Array.from(set).sort((a, b) => {
@@ -95,7 +95,7 @@ export default function GasAnalysisPage() {
     })
   }, [furnaces, allGas])
 
-  // ── 추이 데이터 가공 (최근 12개월, 18개 가동 호기 전체 순서대로) ──
+  // ── 추이 데이터 가공 (최근 12개월, 19개 가동 호기 전체 순서대로) ──
   const months = [...new Set(allGas?.map(r => r.ym.substring(0, 7)) ?? [])].sort().slice(-12)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
@@ -110,7 +110,7 @@ export default function GasAnalysisPage() {
   const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
   const thisMonthGas = (allGas?.filter(r => r.ym === thisMonth) ?? []).filter(r => {
     const c = getFurnaceCode(r)
-    return c !== '4호기' && c !== '7호기'
+    return c !== '7호기'
   })
   const gasUnitValues = thisMonthGas.map(r => getEffectiveGasUnit(r) ?? 0).filter(v => v > 0)
   const outlierSet    = detectOutliers(gasUnitValues)
@@ -121,7 +121,7 @@ export default function GasAnalysisPage() {
     .filter(r => {
       const c = getFurnaceCode(r)
       const u = getEffectiveGasUnit(r)
-      return u != null && u > 0 && c !== '-' && c !== '4호기' && c !== '7호기'
+      return u != null && u > 0 && c !== '-' && c !== '7호기'
     })
     .map((r, i) => {
       const u = getEffectiveGasUnit(r) ?? 0
@@ -163,13 +163,13 @@ export default function GasAnalysisPage() {
   const taewungActual = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.product_or_scope === '실적')
   const validGasRecords = (allGas ?? []).filter(r => {
     const c = getFurnaceCode(r)
-    return c !== '4호기' && c !== '7호기' && getEffectiveGasUnit(r) != null
+    return c !== '7호기' && getEffectiveGasUnit(r) != null
   })
   const ourActual = validGasRecords.length > 0
     ? validGasRecords.reduce((s, r) => s + (getEffectiveGasUnit(r) ?? 0), 0) / validGasRecords.length
     : null
 
-  // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 18개 가동 호기 전체 순서대로) ──
+  // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 19개 가동 호기 전체 순서대로) ──
   const dailyVsMonthly = useMemo(() => {
     if (!allGas || !activeFurnaceCodes.length) return []
     const latestMonth = months[months.length - 1] || new Date().toISOString().substring(0, 7)
@@ -213,7 +213,7 @@ export default function GasAnalysisPage() {
       {/* 원단위 추이 */}
       <div>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          📈 가열로별 원단위 추이 (최근 12개월, 18개 가동 호기 순서대로)
+          📈 가열로별 원단위 추이 (최근 12개월, 19개 가동 호기 순서대로)
         </h2>
         <GasUnitTrendChart
           data={trendData as Array<{ month: string; [key: string]: string | number | null }>}

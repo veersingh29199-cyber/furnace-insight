@@ -172,7 +172,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
 
   const selectGroup = (type: 'all' | 'top5' | 'mid' | 'high') => {
     if (type === 'all') setSelectedCodes(sortedCodes)
-    else if (type === 'top5') setSelectedCodes(sortedCodes.slice(0, 5))
+    else if (type === 'top5') setSelectedCodes(sortedCodes.slice(0, 6))
     else if (type === 'mid') setSelectedCodes(sortedCodes.filter(c => {
       const n = parseInt(c.replace(/[^0-9]/g, '')) || 0
       return n >= 6 && n <= 13
