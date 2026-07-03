@@ -184,7 +184,7 @@ export function LineOutputImportCard() {
       } = await supabase.auth.getUser()
 
       const { data: uploadRow, error: createError } = await supabase
-        .from(DB.tables.uploads)
+        .from(DB.tables.importUploads)
         .insert({
           file_name: file.name,
           storage_path: '',
@@ -198,7 +198,7 @@ export function LineOutputImportCard() {
           uploaded_by: user?.id ?? user?.email ?? 'anonymous',
           note: '생산량집계표 업로드',
         })
-        .select(DB.uploads.id)
+        .select('id')
         .single()
 
       if (createError) throw createError
@@ -211,16 +211,16 @@ export function LineOutputImportCard() {
       setProgress(40)
 
       const storagePath = buildStoragePath(uploadId, file.name)
-      const { error: storageError } = await supabase.storage.from(DB.tables.uploads).upload(storagePath, file, {
+      const { error: storageError } = await supabase.storage.from(DB.storage.importFiles).upload(storagePath, file, {
         contentType: file.type || XLSX_MIME,
         upsert: false,
       })
       if (storageError) throw storageError
 
       await supabase
-        .from(DB.tables.uploads)
+        .from(DB.tables.importUploads)
         .update({ storage_path: storagePath, status: 'parsed', note: '원본 저장 완료' })
-        .eq(DB.uploads.id, uploadId)
+        .eq('id', uploadId)
 
       const dailyRowsToSave = parsed.rows.filter((row) => row.ptype === 'daily')
       const monthlyRowsToSave = parsed.rows.filter((row) => row.ptype === 'monthly')
@@ -286,7 +286,7 @@ export function LineOutputImportCard() {
       const errorRows = Math.max(totalRows - dailyRowsToSave.length - monthlyRowsToSave.length, 0)
 
       await supabase
-        .from(DB.tables.uploads)
+        .from(DB.tables.importUploads)
         .update({
           storage_path: storagePath,
           status: 'completed',
@@ -295,7 +295,7 @@ export function LineOutputImportCard() {
           rows_error: errorRows,
           note: `일일 ${dailyRowsToSave.length}건 / 월별 ${monthlyRowsToSave.length}건 처리 완료`,
         })
-        .eq(DB.uploads.id, uploadId)
+        .eq('id', uploadId)
 
       setSummary({
         stage: 'done',
@@ -318,13 +318,13 @@ export function LineOutputImportCard() {
 
       if (uploadId != null) {
         await supabase
-          .from(DB.tables.uploads)
+          .from(DB.tables.importUploads)
           .update({
             status: 'failed',
             rows_error: totalRows || 0,
             note: message,
           })
-          .eq(DB.uploads.id, uploadId)
+          .eq('id', uploadId)
       }
 
       setSummary({
