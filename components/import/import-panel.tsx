@@ -9,7 +9,13 @@ import { analyzeImportDocument } from '@/lib/import/detect'
 import { buildDefaultImportMappingForSheet, buildImportPreview } from '@/lib/import/transform'
 import { hydrateImportMappingFromTemplate, matchImportTemplate, buildTemplatePayload } from '@/lib/import/template'
 import { IMPORT_DATASETS, getImportDatasetSpec } from '@/lib/import/specs'
-import { saveGasCompanyMonthlyImports, saveGasDailyImports, saveGasMonthlyImports, saveProductionImports } from '@/lib/import/persistence'
+import {
+  saveGasCompanyMonthlyImports,
+  saveGasDailyImports,
+  saveGasMonthlyImports,
+  saveProductionImports,
+  type ImportSaveSummary,
+} from '@/lib/import/persistence'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 import type { Furnace, Line, Product } from '@/types'
 import type { ImportLayout } from '@/types'
@@ -23,6 +29,7 @@ import type {
   ImportPreviewRow,
   ImportSheetAnalysis,
   ImportTemplateRecord,
+  ImportUploadRecord,
   ProductionImportRow,
 } from '@/types/import'
 import { calcAchievementRate, calcGasUnit, calcTonPerHour, formatGasUnit, formatPercent, formatTonPerHour } from '@/lib/utils'
@@ -222,6 +229,24 @@ export function ImportPanel() {
     },
   })
 
+  const { data: recentUploads = [] } = useQuery({
+    queryKey: ['import-uploads'],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from(DB.tables.importUploads)
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .limit(5)
+
+        if (error) throw error
+        return (data ?? []) as ImportUploadRecord[]
+      } catch {
+        return [] as ImportUploadRecord[]
+      }
+    },
+  })
+
   const master = useMemo(
     () => ({
       furnaces: (furnaces ?? []).map((furnace: Furnace) => ({ code: furnace.code, name: furnace.name })),
@@ -234,6 +259,7 @@ export function ImportPanel() {
 
   const [rawSheets, setRawSheets] = useState<Array<{ sheetName: string; matrix: string[][] }> | null>(null)
   const [fileName, setFileName] = useState('')
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [selectedSheetName, setSelectedSheetName] = useState('')
   const [activeDatasetKey, setActiveDatasetKey] = useState<ImportDatasetKey>('gas-daily')
   const [mappingBySheet, setMappingBySheet] = useState<Record<string, ImportMappingState>>({})
@@ -333,11 +359,13 @@ export function ImportPanel() {
 
       setRawSheets(sheets)
       setFileName(file.name)
+      setUploadedFile(file)
       setMappingBySheet({})
       setSelectedSheetName(best?.sheetName ?? '')
       setActiveDatasetKey(best?.datasetGuess ?? 'gas-daily')
       setTemplateName(file.name.replace(/\.[^.]+$/, ''))
     } catch (error) {
+      setUploadedFile(null)
       setFileError(error instanceof Error ? error.message : '파일을 읽지 못했습니다.')
       toast.error('파일을 불러오지 못했습니다.')
     } finally {
@@ -363,6 +391,7 @@ export function ImportPanel() {
 
       setRawSheets(sheets)
       setFileName(sheetName)
+      setUploadedFile(null)
       setMappingBySheet({})
       setSelectedSheetName(best?.sheetName ?? sheetName)
       setActiveDatasetKey(best?.datasetGuess ?? 'gas-daily')
@@ -472,6 +501,77 @@ export function ImportPanel() {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '저장에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveCurrentImportWithServerArchive = async () => {
+    if (!uploadedFile || !currentSheet || !currentPreview || !currentMapping) {
+      await saveCurrentImport()
+      return
+    }
+
+    if (currentPreview.validRows.length === 0) {
+      toast.error('저장할 정상 행이 없습니다.')
+      return
+    }
+
+    const enteredByName = typeof window !== 'undefined' ? window.localStorage.getItem('furnace_operator_name') || null : null
+    const enteredByShift = typeof window !== 'undefined' ? window.localStorage.getItem('furnace_operator_shift') || null : null
+
+    setSaving(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+      formData.append('sheetName', currentSheet.sheetName)
+      formData.append('templateName', templateName.trim())
+      formData.append('mapping', JSON.stringify(currentMapping))
+      formData.append('enteredByName', enteredByName ?? '')
+      formData.append('enteredByShift', enteredByShift ?? '')
+
+      const response = await fetch('/api/import/ingest', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; summary?: ImportSaveSummary; upload?: ImportUploadRecord }
+        | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? '서버 저장에 실패했습니다.')
+      }
+
+      const summary = payload?.summary ?? {
+        total: currentPreview.validRows.length,
+        saved: currentPreview.validRows.length,
+        failed: 0,
+        errors: [],
+      }
+
+      if (payload?.upload) {
+        queryClient.setQueryData<ImportUploadRecord[]>(['import-uploads'], (current = []) => {
+          const next = [payload.upload!, ...current.filter((item) => item.id !== payload.upload!.id)]
+          return next.slice(0, 5)
+        })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-kpi'] })
+      await queryClient.invalidateQueries({ queryKey: ['gas-records'] })
+      await queryClient.invalidateQueries({ queryKey: ['production-records'] })
+      await queryClient.invalidateQueries({ queryKey: ['gas-daily-all'] })
+      if (Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+        await queryClient.invalidateQueries({ queryKey: ['import-uploads'] })
+      }
+
+      toast.success(`저장 완료: ${summary.saved}건 / 실패 ${summary.failed}건`)
+      if (summary.errors.length > 0) {
+        summary.errors.slice(0, 3).forEach((error) => toast.error(error.message))
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서버 저장에 실패했습니다. 기존 방식으로 다시 시도합니다.')
+      await saveCurrentImport()
     } finally {
       setSaving(false)
     }
@@ -985,7 +1085,7 @@ export function ImportPanel() {
                         {savingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                         템플릿 저장
                       </Button>
-                      <Button onClick={saveCurrentImport} disabled={!currentPreview || currentPreview.validRows.length === 0 || saving}>
+                      <Button onClick={saveCurrentImportWithServerArchive} disabled={!currentPreview || currentPreview.validRows.length === 0 || saving}>
                         {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         저장
                       </Button>
@@ -1028,6 +1128,67 @@ export function ImportPanel() {
           )
         })}
       </Tabs>
+
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle className="text-base">최근 서버 업로드</CardTitle>
+              <CardDescription>
+                원본 파일은 서버 저장소에 남고, 같은 파일명과 시트로 다시 올리면 최신 값으로 덮어씁니다.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="gap-1">
+              <Upload className="h-3 w-3" />
+              최신 5건
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {recentUploads.length === 0 ? (
+            <Alert>
+              <Database className="h-4 w-4" />
+              <AlertDescription className="text-sm">아직 서버에 저장된 업로드가 없습니다.</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="overflow-hidden rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>파일</TableHead>
+                    <TableHead>시트</TableHead>
+                    <TableHead>상태</TableHead>
+                    <TableHead className="text-right">저장</TableHead>
+                    <TableHead className="text-right">실패</TableHead>
+                    <TableHead>갱신</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentUploads.map((upload) => (
+                    <TableRow key={upload.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="font-medium">{upload.file_name}</p>
+                          <p className="text-xs text-muted-foreground">{upload.dataset_key}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{upload.sheet_name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{upload.layout}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{upload.saved_count}</TableCell>
+                      <TableCell className="text-right tabular-nums">{upload.failed_count}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(upload.updated_at ?? upload.created_at).toLocaleString('ko-KR')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

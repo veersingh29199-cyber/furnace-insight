@@ -6,9 +6,13 @@ export const DB = {
     gasCompanyMonthly: 'gas_company_monthly',
     importAliases: 'import_aliases',
     importTemplates: 'import_templates',
+    importUploads: 'import_uploads',
     furnaces: 'furnaces',
     lines: 'lines',
     products: 'products',
+  },
+  storage: {
+    importFiles: 'import-files',
   },
   productionRecords: {
     workMonth: 'work_month',
@@ -84,6 +88,26 @@ export const DB = {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  importUploads: {
+    datasetKey: 'dataset_key',
+    sheetName: 'sheet_name',
+    fileName: 'file_name',
+    storageBucket: 'storage_bucket',
+    storagePath: 'storage_path',
+    fileHash: 'file_hash',
+    fileSize: 'file_size',
+    layout: 'layout',
+    rowCount: 'row_count',
+    savedCount: 'saved_count',
+    failedCount: 'failed_count',
+    warningCount: 'warning_count',
+    templateName: 'template_name',
+    mappingJson: 'mapping_json',
+    summaryJson: 'summary_json',
+    createdBy: 'created_by',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 } as const
 
 export const DB_CONFLICT_KEYS = {
@@ -93,4 +117,5 @@ export const DB_CONFLICT_KEYS = {
   gasCompanyMonthly: 'ym',
   importAliases: 'dataset_key,canonical_field,alias_text',
   importTemplates: 'dataset_key,name',
+  importUploads: 'dataset_key,sheet_name,file_name',
 } as const

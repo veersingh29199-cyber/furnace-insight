@@ -47,6 +47,28 @@ export interface ImportTemplateRecord {
   updated_at: string | null
 }
 
+export interface ImportUploadRecord {
+  id: string
+  dataset_key: ImportDatasetKey
+  sheet_name: string
+  file_name: string
+  storage_bucket: string
+  storage_path: string
+  file_hash: string
+  file_size: number
+  layout: ImportLayout
+  row_count: number
+  saved_count: number
+  failed_count: number
+  warning_count: number
+  template_name: string | null
+  mapping_json: Record<string, unknown>
+  summary_json: Record<string, unknown>
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
 export interface ImportSourceColumn {
   key: string
   index: number

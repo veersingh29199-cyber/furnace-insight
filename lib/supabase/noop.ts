@@ -117,6 +117,7 @@ function createInitialStore(): TableStore {
     gas_company_monthly: [],
     import_aliases: [],
     import_templates: [],
+    import_uploads: [],
     targets: [],
     benchmarks: [],
     profiles: [],
@@ -386,8 +387,10 @@ function createNoopQueryBuilder(table?: string | null, initialOperation: QuerySt
         return (onFinally?: () => void) => Promise.resolve(resolveResult()).finally(onFinally)
       }
       if (prop === 'single' || prop === 'maybeSingle') {
-        state.single = true
-        return proxy
+        return () => {
+          state.single = true
+          return proxy
+        }
       }
       if (prop === 'select') {
         return (...args: unknown[]) => {
