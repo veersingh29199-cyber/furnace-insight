@@ -26,8 +26,6 @@ import type {
   ImportPreviewContext,
   ImportPreviewRow,
   ImportSheetAnalysis,
-  LineOutputDailyImportRow,
-  LineOutputMonthlyImportRow,
   RawMaterialSpecImportRow,
   TargetImportRow,
   ProductionImportRow,
@@ -534,8 +532,6 @@ function parseGasChargeDailyWide(
     if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
 
     const rowLabel = getCell(raw, rowLabelIndex)
-    const shiftText = shiftColumnIndex != null ? getCell(raw, shiftColumnIndex) : resolveFieldText(raw, 'shift', mapping, autoFieldIndexMap)
-    const shift = normalizeShiftText(shiftText)
     const workDate = normalizeDateText(rowLabel, null) || normalizeDateText(resolveFieldText(raw, 'date', mapping, autoFieldIndexMap), null)
     const effectiveDate = workDate ?? lastWorkDate
     if (workDate) lastWorkDate = workDate

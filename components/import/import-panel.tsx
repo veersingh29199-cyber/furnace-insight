@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { readImportSheets } from '@/lib/import/common'
@@ -343,12 +343,6 @@ export function ImportPanel({ preferredDatasetKey }: { preferredDatasetKey?: Imp
   const [saving, setSaving] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (preferredDatasetKey) {
-      setActiveDatasetKey(preferredDatasetKey)
-    }
-  }, [preferredDatasetKey])
 
   const analyses = useMemo(() => {
     if (!rawSheets) return []

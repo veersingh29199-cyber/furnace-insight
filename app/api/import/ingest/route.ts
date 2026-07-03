@@ -238,7 +238,6 @@ export async function POST(request: Request) {
     let totalFailed = 0
     let totalValidRows = 0
     let totalInvalidRows = 0
-    let totalWarningRows = 0
     const errorMessages: string[] = []
 
     for (const sheet of sheetQueue) {
@@ -320,7 +319,6 @@ export async function POST(request: Request) {
       totalFailed += summary.failed
       totalValidRows += preview.validRows.length
       totalInvalidRows += preview.invalidRowCount
-      totalWarningRows += preview.warningRowCount
       errorMessages.push(...summary.errors.slice(0, 10).map((item) => item.message))
 
       const finalUpload = await upsertImportUploadRecord(supabase, {

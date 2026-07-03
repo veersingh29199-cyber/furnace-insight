@@ -1,46 +1,60 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 
 export interface OperatorInfo {
   name: string
   shift: 'day' | 'night'
 }
 
-const STORAGE_KEY_NAME  = 'furnace_operator_name'
+const STORAGE_KEY_NAME = 'furnace_operator_name'
 const STORAGE_KEY_SHIFT = 'furnace_operator_shift'
-const STORAGE_KEY_LIST  = 'furnace_operators_list'
+const STORAGE_KEY_LIST = 'furnace_operators_list'
 
 export const DEFAULT_OPERATORS = [
   '김철수 (단조1팀)',
   '이영희 (단조2팀)',
-  '박민수 (설비보전팀)',
-  '정대현 (생산관리팀)',
-  '최수진 (품질관리팀)',
+  '박민수 (열처리반장)',
+  '정수진 (생산관리자)',
+  '최수진 (현장관리자)',
 ]
 
+const DEFAULT_OPERATOR_NAME = DEFAULT_OPERATORS[0]
+
+function readStoredOperatorName() {
+  if (typeof window === 'undefined') return DEFAULT_OPERATOR_NAME
+  return window.localStorage.getItem(STORAGE_KEY_NAME) || DEFAULT_OPERATOR_NAME
+}
+
+function readStoredOperatorShift() {
+  if (typeof window === 'undefined') return 'day' as const
+  return (window.localStorage.getItem(STORAGE_KEY_SHIFT) as 'day' | 'night') || 'day'
+}
+
+function readStoredOperatorList() {
+  if (typeof window === 'undefined') return DEFAULT_OPERATORS
+  const savedList = window.localStorage.getItem(STORAGE_KEY_LIST)
+  if (!savedList) return DEFAULT_OPERATORS
+
+  try {
+    const parsed = JSON.parse(savedList)
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : DEFAULT_OPERATORS
+  } catch {
+    return DEFAULT_OPERATORS
+  }
+}
+
 export function useOperator() {
-  const [name, setName] = useState<string>('')
-  const [shift, setShift] = useState<'day' | 'night'>('day')
-  const [operatorList, setOperatorList] = useState<string[]>(DEFAULT_OPERATORS)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const savedName  = localStorage.getItem(STORAGE_KEY_NAME) || '김철수 (단조1팀)'
-    const savedShift = (localStorage.getItem(STORAGE_KEY_SHIFT) as 'day' | 'night') || 'day'
-    setName(savedName)
-    setShift(savedShift)
-
-    const savedList = localStorage.getItem(STORAGE_KEY_LIST)
-    if (savedList) {
-      try {
-        setOperatorList(JSON.parse(savedList))
-      } catch {
-        setOperatorList(DEFAULT_OPERATORS)
-      }
-    }
-  }, [])
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
+  const [name, setName] = useState<string>(readStoredOperatorName)
+  const [shift, setShift] = useState<'day' | 'night'>(readStoredOperatorShift)
+  const [operatorList, setOperatorList] = useState<string[]>(readStoredOperatorList)
 
   const updateName = (newName: string) => {
     setName(newName)
@@ -66,7 +80,7 @@ export function useOperator() {
   }
 
   const removeOperatorPreset = (targetOp: string) => {
-    const updated = operatorList.filter(o => o !== targetOp)
+    const updated = operatorList.filter((o) => o !== targetOp)
     setOperatorList(updated)
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_LIST, JSON.stringify(updated))
@@ -74,7 +88,7 @@ export function useOperator() {
   }
 
   return {
-    name: mounted ? name : '김철수 (단조1팀)',
+    name: mounted ? name : DEFAULT_OPERATOR_NAME,
     shift: mounted ? shift : 'day',
     operatorList: mounted ? operatorList : DEFAULT_OPERATORS,
     setName: updateName,

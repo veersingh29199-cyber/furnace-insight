@@ -62,11 +62,6 @@ function extractWorkCount(label: string) {
   return match ? Number(match[1]) : 0
 }
 
-function detectLineOutputKind(sheet: ImportSheetAnalysis): LineOutputKind {
-  if (sheet.sheetName.includes('전체')) return 'monthly'
-  return 'daily'
-}
-
 function getBandStarts(sheet: ImportSheetAnalysis) {
   const row5 = sheet.matrix[4] ?? []
   const row6 = sheet.matrix[5] ?? []
@@ -144,7 +139,6 @@ function classifyBandField(
 
 function parseLineOutputSheet<TRecord extends LineOutputDailyImportRow | LineOutputMonthlyImportRow>(
   sheet: ImportSheetAnalysis,
-  context: ImportPreviewContext,
   kind: LineOutputKind,
   options: LineOutputOptions = {}
 ): ImportPreview<TRecord> {
@@ -353,7 +347,8 @@ export function parseLineOutputDailySheet(
   context: ImportPreviewContext,
   options?: LineOutputOptions
 ): ImportPreview<LineOutputDailyImportRow> {
-  return parseLineOutputSheet<LineOutputDailyImportRow>(sheet, context, 'daily', options)
+  void context
+  return parseLineOutputSheet<LineOutputDailyImportRow>(sheet, 'daily', options)
 }
 
 export function parseLineOutputMonthlySheet(
@@ -361,5 +356,6 @@ export function parseLineOutputMonthlySheet(
   context: ImportPreviewContext,
   options?: LineOutputOptions
 ): ImportPreview<LineOutputMonthlyImportRow> {
-  return parseLineOutputSheet<LineOutputMonthlyImportRow>(sheet, context, 'monthly', options)
+  void context
+  return parseLineOutputSheet<LineOutputMonthlyImportRow>(sheet, 'monthly', options)
 }

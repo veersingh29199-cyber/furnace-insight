@@ -1,12 +1,5 @@
 'use client'
 
-import {
-  RadialBarChart,
-  RadialBar,
-  ResponsiveContainer,
-  Legend,
-  Tooltip,
-} from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 

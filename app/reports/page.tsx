@@ -56,6 +56,10 @@ function safeNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
 export default function ReportsPage() {
   const [reportType, setReportType] = useState<'productivity' | 'gas'>('productivity')
   const [selectedYear, setSelectedYear] = useState<string>('2026')
@@ -99,7 +103,7 @@ export default function ReportsPage() {
   const targetTph = targets?.find((row) => row.metric === 'ton_per_hour' && row.scope === 'company' && row.year === Number(selectedYear))?.target_value ?? 20
   const gasTarget = targets?.find((row) => row.metric === 'gas_unit' && row.scope === 'company' && row.year === Number(selectedYear))?.target_value ?? 150
 
-  const { data: prodRecords = [], isLoading: prodLoading } = useQuery({
+  const { data: prodRecords = [] } = useQuery({
     queryKey: ['report-prod', selectedYear, selectedLine],
     queryFn: async () => {
       let query = supabase
@@ -118,7 +122,7 @@ export default function ReportsPage() {
     },
   })
 
-  const { data: gasRecords = [], isLoading: gasLoading } = useQuery({
+  const { data: gasRecords = [] } = useQuery({
     queryKey: ['report-gas', selectedYear],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -356,8 +360,8 @@ export default function ReportsPage() {
 
       await generatePptxReport(payload)
       toast.success('PPT 파일을 저장했습니다.')
-    } catch (error: any) {
-      toast.error(`PPT 생성 실패: ${error?.message ?? '알 수 없는 오류'}`)
+    } catch (error: unknown) {
+      toast.error(`PPT 생성 실패: ${getErrorMessage(error)}`)
     } finally {
       setGeneratingPpt(false)
     }
@@ -370,7 +374,7 @@ export default function ReportsPage() {
       setGeneratingPdf(true)
       toast.info('PDF를 생성 중입니다...')
 
-      const canvas = await html2canvas(reportContainerRef.current, { scale: 2, useCORS: true } as any)
+      const canvas = await html2canvas(reportContainerRef.current, { useCORS: true })
       const imgData = canvas.toDataURL('image/png')
 
       const pdf = new jsPDF('p', 'mm', 'a4')
@@ -380,8 +384,8 @@ export default function ReportsPage() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
       pdf.save(`가열로인사이트_${reportType === 'productivity' ? '생산성보고서' : '가스원단위보고서'}_${selectedYear}.pdf`)
       toast.success('PDF를 저장했습니다.')
-    } catch (error: any) {
-      toast.error(`PDF 생성 실패: ${error?.message ?? '알 수 없는 오류'}`)
+    } catch (error: unknown) {
+      toast.error(`PDF 생성 실패: ${getErrorMessage(error)}`)
     } finally {
       setGeneratingPdf(false)
     }
@@ -580,7 +584,7 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="lineCode" textAnchor="middle" fontSize={11} />
                       <YAxis fontSize={11} />
-                      <Tooltip formatter={(value: any) => `${Number(value).toLocaleString()} t`} />
+                      <Tooltip formatter={(value) => `${Number(Array.isArray(value) ? value[0] : value ?? 0).toLocaleString()} t`} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="planTon" name="목표 생산량" fill="#94A3B8" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="actualTon" name="실적 생산량" fill="#1D4ED8" radius={[4, 4, 0, 0]} />
@@ -598,7 +602,7 @@ export default function ReportsPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="productName" fontSize={11} />
                     <YAxis fontSize={11} />
-                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)} t/h`} />
+                    <Tooltip formatter={(value) => `${Number(Array.isArray(value) ? value[0] : value ?? 0).toFixed(1)} t/h`} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="actualTph" name="실제 평균 (t/h)" fill="#1D4ED8" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="benchmarkTph" name="회사 기준 (t/h)" fill="#EF4444" radius={[4, 4, 0, 0]} />
@@ -657,7 +661,7 @@ export default function ReportsPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="ym" fontSize={11} />
                     <YAxis fontSize={11} />
-                    <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)} Nm³/t`} />
+                    <Tooltip formatter={(value) => `${Number(Array.isArray(value) ? value[0] : value ?? 0).toFixed(1)} Nm³/t`} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Line type="monotone" dataKey="actualUnit" name="실적 원단위" stroke="#1D4ED8" strokeWidth={3} dot={{ r: 4 }} />
                     <Line type="step" dataKey="targetUnit" name="목표 원단위" stroke="#10B981" strokeWidth={2} strokeDasharray="5 5" />

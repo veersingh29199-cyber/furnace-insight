@@ -16,9 +16,9 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Cell
 } from 'recharts'
-import { Info, AlertTriangle, Calculator, Flame, CheckCircle2, XCircle } from 'lucide-react'
+import { Info, AlertTriangle, Calculator, Flame, CheckCircle2 } from 'lucide-react'
 import {
-  formatGasUnit, kgToTon, detectOutliers, cn
+  formatGasUnit, detectOutliers, cn
 } from '@/lib/utils'
 import { normalizeMonthDate } from '@/lib/input/common'
 

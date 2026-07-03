@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useAuth } from '@/components/providers/auth-provider'
 import { useOperator } from '@/hooks/use-operator'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,27 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   viewer: 'outline',
 }
 
+const THEME_STORAGE_KEY = 'theme'
+const THEME_CHANGE_EVENT = 'furnace-theme-change'
+
+function getThemeSnapshot() {
+  if (typeof window === 'undefined') return false
+  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  return savedTheme ? savedTheme === 'dark' : prefersDark
+}
+
+function subscribeTheme(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const handleChange = () => onStoreChange()
+  window.addEventListener('storage', handleChange)
+  window.addEventListener(THEME_CHANGE_EVENT, handleChange)
+  return () => {
+    window.removeEventListener('storage', handleChange)
+    window.removeEventListener(THEME_CHANGE_EVENT, handleChange)
+  }
+}
+
 interface HeaderProps {
   onMenuClick: () => void
   pageTitle?: string
@@ -45,22 +66,19 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
     addOperatorPreset,
     mounted,
   } = useOperator()
-  const [dark, setDark] = useState(false)
   const [customInput, setCustomInput] = useState('')
+  const dark = useSyncExternalStore(subscribeTheme, getThemeSnapshot, () => false)
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark)
-    document.documentElement.classList.toggle('dark', shouldUseDark)
-    setDark(shouldUseDark)
-  }, [])
+    document.documentElement.classList.toggle('dark', dark)
+  }, [dark])
 
   const toggleDark = () => {
+    if (typeof window === 'undefined') return
     const next = !dark
-    setDark(next)
     document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
+    window.localStorage.setItem(THEME_STORAGE_KEY, next ? 'dark' : 'light')
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT))
   }
 
   return (

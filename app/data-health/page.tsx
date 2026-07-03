@@ -13,7 +13,6 @@ import { useTargets } from '@/hooks/use-dashboard'
 import { DB } from '@/types/db'
 import {
   getProductionDeptLine,
-  getProductionFurnaceCode,
   getProductionOrderWeight,
   getProductionTonPerHour,
   getProductionWorkDate,

@@ -9,15 +9,6 @@ import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const supabase = createClient()
 
-function monthBounds(ym: string) {
-  const [year, month] = ym.split('-').map((value) => Number(value))
-  const lastDay = new Date(year, month, 0).getDate()
-  return {
-    from: `${ym}-01`,
-    to: `${ym}-${String(lastDay).padStart(2, '0')}`,
-  }
-}
-
 export function useProductionRecords(params?: {
   from?: string
   to?: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -158,11 +158,7 @@ function useAppSettingsAdmin() {
 
 function FurnaceRow({ furnace }: { furnace: Furnace }) {
   const qc = useQueryClient()
-  const [deptDraft, setDeptDraft] = useState(furnace.dept ?? '')
-
-  useEffect(() => {
-    setDeptDraft(furnace.dept ?? '')
-  }, [furnace.dept])
+  const [deptDraft, setDeptDraft] = useState(() => furnace.dept ?? '')
 
   const saveDept = useMutation({
     mutationFn: async () => {
@@ -1015,7 +1011,7 @@ export default function MasterDataPanel() {
                 </TableHeader>
                 <TableBody>
                   {furnaces?.map((furnace) => (
-                    <FurnaceRow key={furnace.id} furnace={furnace} />
+                    <FurnaceRow key={`${furnace.id}:${furnace.dept ?? ''}`} furnace={furnace} />
                   ))}
                   {!furnaces?.length && (
                     <TableRow>

@@ -3,16 +3,14 @@
 import { useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataSheetGrid } from 'react-datasheet-grid'
-import { ArrowDownToLine, ArrowUpDown, FileUp, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpDown, FileUp, Loader2, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProductionRecord } from '@/types'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -51,7 +49,6 @@ import {
   daysInMonth,
 } from '@/lib/input/common'
 import {
-  calcAchievementRate,
   calcTonPerHour,
   formatPercent,
   formatTonPerHour,
@@ -66,8 +63,6 @@ import {
   getProductionOrderWeight,
   getProductionProcess,
   getProductionProduct,
-  getProductionTonPerHour,
-  getProductionTonPerRun,
   getProductionWorkDate,
   getProductionWorkHours,
   getProductionWorkCount,
@@ -794,7 +789,7 @@ export default function ProductionInputPage() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isHydrated, onSaveShortcut])
+  }, [isHydrated])
 
   const handleParsePaste = () => {
     const matrix = parseDelimitedText(pasteText)

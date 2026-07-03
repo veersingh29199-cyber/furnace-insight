@@ -1,5 +1,4 @@
 import PptxGenJS from 'pptxgenjs'
-import { format } from 'date-fns'
 
 export interface ReportDataPayload {
   type: 'productivity' | 'gas'
@@ -171,7 +170,11 @@ export async function generatePptxReport(data: ReportDataPayload) {
         r.tonPerHour.toFixed(1),
       ])
 
-      lineSlide.addTable([tableHeaders, ...tableRows] as any, {
+      const tableData: PptxGenJS.TableRow[] = [tableHeaders, ...tableRows].map((row) =>
+        row.map((text) => ({ text }))
+      )
+
+      lineSlide.addTable(tableData, {
         x: 0.6,
         y: 1.5,
         w: 4.6,
