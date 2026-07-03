@@ -11,8 +11,10 @@ export type ImportLayout =
   | 'long'
   | 'gas-daily-wide'
   | 'gas-monthly-wide'
+  | 'gas-charge-daily-wide'
   | 'production-wide'
   | 'production-detail'
+  | 'production-summary'
   | 'production-daily'
   | 'company-wide'
 

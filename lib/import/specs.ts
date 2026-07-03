@@ -58,11 +58,11 @@ export const IMPORT_DATASETS: Record<ImportDatasetKey, ImportDatasetSpec> = {
   'gas-monthly': {
     key: 'gas-monthly',
     label: '월 가스',
-    description: '가열로별 월 검침량과 장입량을 long/wide 양식에서 변환합니다.',
+    description: '가열로별 월 검침량과 일별 장입/투입 파일을 월별 호기 데이터로 변환합니다.',
     table: DB.tables.gasRecords,
     conflictKey: DB_CONFLICT_KEYS.gasRecords,
     defaultLayout: 'gas-monthly-wide',
-    supportedLayouts: ['long', 'gas-monthly-wide'],
+    supportedLayouts: ['long', 'gas-monthly-wide', 'gas-charge-daily-wide'],
     fields: [
       { key: 'ym', label: '월', required: true, kind: 'date', preview: true },
       { key: 'furnace_code', label: '가열로', required: true, kind: 'text', preview: true },
@@ -88,7 +88,7 @@ export const IMPORT_DATASETS: Record<ImportDatasetKey, ImportDatasetSpec> = {
     table: DB.tables.productionRecords,
     conflictKey: DB_CONFLICT_KEYS.productionRecords,
     defaultLayout: 'production-daily',
-    supportedLayouts: ['long', 'production-daily', 'production-detail', 'production-wide'],
+    supportedLayouts: ['long', 'production-daily', 'production-detail', 'production-summary', 'production-wide'],
     fields: [
       { key: 'work_date', label: '작업일', required: true, kind: 'date', preview: true },
       { key: 'dept_line', label: '작업부서/라인', required: true, kind: 'text', preview: true },

@@ -58,12 +58,25 @@ export function rowText(row: string[]) {
   return row.map((cell) => String(cell ?? '').trim()).join(' ')
 }
 
+function normalizeExcelSerialDate(value: string) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric < 1000) return null
+
+  const parsed = XLSX.SSF.parse_date_code(numeric)
+  if (!parsed || !parsed.y || !parsed.m || !parsed.d) return null
+
+  return `${String(parsed.y).padStart(4, '0')}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
+}
+
 export function normalizeMonthDate(value: unknown, fallbackYear?: number | null) {
   const text = String(value ?? '').trim()
   if (!text) return null
 
   const direct = extractMonthFromText(text)
   if (direct) return direct
+
+  const serialDate = normalizeExcelSerialDate(text)
+  if (serialDate) return `${serialDate.slice(0, 7)}-01`
 
   const yearMatch = text.match(/(20\d{2})/)
   const monthMatch = text.match(/(0?[1-9]|1[0-2])\s*월/) ?? text.match(/(0?[1-9]|1[0-2])$/)
@@ -80,6 +93,9 @@ export function normalizeMonthDate(value: unknown, fallbackYear?: number | null)
 export function normalizeDateText(value: unknown, fallbackYm?: string | null) {
   const text = String(value ?? '').trim()
   if (!text) return null
+
+  const serialDate = normalizeExcelSerialDate(text)
+  if (serialDate) return serialDate
 
   const normalized = text.replace(/[./]/g, '-')
   const fullDate = normalized.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})$/)
@@ -193,4 +209,3 @@ export function toWorkbookSheetHeader(workbook: XLSX.WorkBook, sheetName: string
   const sheet = workbook.Sheets[sheetName]
   return sheet ? XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as string[][] : []
 }
-

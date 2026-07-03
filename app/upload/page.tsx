@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 type TemplateSpec = {
-  key: 'production' | 'gas-daily' | 'gas-monthly'
+  key: 'production' | 'gas-daily' | 'gas-monthly' | 'gas-charge-daily'
   title: string
   description: string
   icon: typeof FileSpreadsheet
@@ -34,6 +34,19 @@ const TEMPLATE_SPECS: TemplateSpec[] = [
     requiredColumns: ['work_date', 'dept_line', 'shift', 'order_no', 'process', 'work_hours', 'work_count', 'order_weight', 'charge_weight', 'furnace_code'],
     exampleValues: ['2026-07-01', 'P5', 'day', 'SO-001', '가열', '2.5h', '3회', '120.5t', '130kg', '18호기'],
     help: '작업시간과 작업횟수는 수주번호와 공정 옆에 두면 가장 빨리 확인됩니다.',
+  },
+  {
+    key: 'gas-charge-daily',
+    title: '가열로 장입량 / 투입중량',
+    description: '일자 × 호기 장입 파일을 월별 호기 장입량으로 집계할 때 사용합니다.',
+    icon: FileUp,
+    fileName: 'gas_charge_daily_template',
+    sheetName: '장입량',
+    headers: ['date', 'shift', 'furnace_code', 'charge_weight_kg'],
+    sampleRow: ['2026-07-01', 'day', '18호기', '1,250'],
+    requiredColumns: ['date', 'shift', 'furnace_code', 'charge_weight_kg'],
+    exampleValues: ['2026-07-01', '주간조', '18호기', '1,250kg'],
+    help: '이 형식은 월 가스 카드에서 자동 감지되어 월별 장입량으로 저장됩니다.',
   },
   {
     key: 'gas-daily',
@@ -172,7 +185,7 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-4">
         {cards.map((spec) => (
           <TemplateCard
             key={spec.key}

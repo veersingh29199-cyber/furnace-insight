@@ -304,6 +304,7 @@ function parseGasDailyWide(
   const rowLabelIndex = sourceKeyToIndex(mapping.options.rowLabelSourceKey as string | null | undefined) ?? 0
   const shiftFromMapping = normalizeShiftText(mapping.staticValues.shift ?? null)
   const shiftColumnIndex = sourceKeyToIndex(mapping.fieldMap.shift ?? null)
+  let lastDate: string | null = null
   const dataColumns = sheet.columns.filter((column) => {
     const furnace = furnaceLookup.get(normalizeToken(column.label))
     return furnace != null || normalizeFurnaceCode(column.label) != null || /호기/.test(column.label)
@@ -317,8 +318,10 @@ function parseGasDailyWide(
     const shiftText = shiftColumnIndex != null ? getCell(raw, shiftColumnIndex) : resolveFieldText(raw, 'shift', mapping, autoFieldIndexMap)
     const shift = normalizeShiftText(shiftText) ?? shiftFromMapping
     const date = normalizeDateText(rowLabel, baseYm) || normalizeDateText(resolveFieldText(raw, 'date', mapping, autoFieldIndexMap), baseYm)
+    const effectiveDate = date ?? lastDate
 
-    if (!date && !rowLabel) return
+    if (date) lastDate = date
+    if (!effectiveDate && !rowLabel) return
 
     dataColumns.forEach((column) => {
       const furnace = furnaceLookup.get(normalizeToken(column.label)) ?? null
@@ -330,10 +333,10 @@ function parseGasDailyWide(
       const warnings: string[] = []
 
       if (!furnace) errors.push(`호기 "${column.label}"을 찾지 못했습니다.`)
-      if (!date) errors.push(`일자 "${rowLabel}"를 해석하지 못했습니다.`)
+      if (!effectiveDate) errors.push(`일자 "${rowLabel}"를 해석하지 못했습니다.`)
 
       const record: GasDailyImportRow = {
-        date: date ?? (baseYm ? `${baseYm}-01` : ''),
+        date: effectiveDate ?? (baseYm ? `${baseYm}-01` : ''),
         furnace_code: furnace?.code ?? normalizeFurnaceCode(column.label) ?? column.label,
         shift,
         value,
@@ -484,6 +487,112 @@ function parseGasMonthlyWide(
   return finalizePreview(sheet, rows, context.layout, 'gas-monthly')
 }
 
+function parseGasChargeDailyWide(
+  sheet: ImportSheetAnalysis,
+  mapping: ImportMappingState,
+  context: ImportPreviewContext
+): ImportPreview<GasMonthlyImportRow> {
+  const headerRow = sheet.headerRowIndex != null ? sheet.matrix[sheet.headerRowIndex] ?? [] : []
+  const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
+  const furnaceLookup = buildFurnaceLookup(context.master.furnaces as Furnace[], context.master.aliases)
+  const rows: ImportPreviewRow<GasMonthlyImportRow>[] = []
+  const aggregates = new Map<
+    string,
+    {
+      errors: string[]
+      firstRowIndex: number
+      raw: string[]
+      record: GasMonthlyImportRow
+      sourceCount: number
+      warnings: string[]
+    }
+  >()
+
+  const rowLabelIndex = sourceKeyToIndex(mapping.options.rowLabelSourceKey as string | null | undefined) ?? 0
+  const shiftColumnIndex = sourceKeyToIndex(mapping.fieldMap.shift ?? null)
+  const noteText = resolveFieldText([], 'note', mapping, autoFieldIndexMap) || null
+  let lastWorkDate: string | null = null
+
+  const dataColumns = sheet.columns.filter((column) => {
+    if (column.index === rowLabelIndex || column.index === shiftColumnIndex) return false
+    const furnace = furnaceLookup.get(normalizeToken(column.label))
+    return furnace != null || normalizeFurnaceCode(column.label) != null
+  })
+
+  sheet.matrix.slice((sheet.headerRowIndex ?? -1) + 1).forEach((raw, index) => {
+    const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
+    if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
+
+    const rowLabel = getCell(raw, rowLabelIndex)
+    const shiftText = shiftColumnIndex != null ? getCell(raw, shiftColumnIndex) : resolveFieldText(raw, 'shift', mapping, autoFieldIndexMap)
+    const shift = normalizeShiftText(shiftText)
+    const workDate = normalizeDateText(rowLabel, null) || normalizeDateText(resolveFieldText(raw, 'date', mapping, autoFieldIndexMap), null)
+    const effectiveDate = workDate ?? lastWorkDate
+    if (workDate) lastWorkDate = workDate
+    if (!effectiveDate) return
+
+    const ym = `${effectiveDate.slice(0, 7)}-01`
+
+    dataColumns.forEach((column) => {
+      const value = parseLooseNumber(getCell(raw, column.index))
+      if (value == null || value <= 0) return
+
+      const furnace = furnaceLookup.get(normalizeToken(column.label)) ?? null
+      const furnaceCode = furnace?.code ?? normalizeFurnaceCode(column.label) ?? column.label
+      const key = `${ym}|${furnaceCode}`
+      const existing = aggregates.get(key)
+      const errors: string[] = []
+      const warnings: string[] = []
+
+      if (!furnace && !normalizeFurnaceCode(column.label)) errors.push(`호기 "${column.label}"을 찾지 못했습니다.`)
+
+      const record: GasMonthlyImportRow = existing?.record ?? {
+        ym,
+        furnace_code: furnaceCode,
+        charge_weight_kg: 0,
+        gas_usage: 0,
+        source: 'self',
+        order_no: null,
+        note: noteText,
+      }
+
+      record.charge_weight_kg += value
+
+      if (existing) {
+        existing.sourceCount += 1
+        existing.record = record
+        existing.errors.push(...errors)
+        existing.warnings.push(...warnings)
+        return
+      }
+
+      aggregates.set(key, {
+        errors,
+        firstRowIndex: rowIndex,
+        raw,
+        record,
+        sourceCount: 1,
+        warnings,
+      })
+    })
+  })
+
+  Array.from(aggregates.values()).forEach((entry) => {
+    const warnings = [...entry.warnings]
+    if (entry.sourceCount > 1) warnings.push(`원본 ${entry.sourceCount}건을 월별 장입량으로 집계했습니다.`)
+    if (entry.record.charge_weight_kg <= 0) {
+      entry.errors.push('장입량을 찾지 못했습니다.')
+    }
+    warnings.push('가스사용량은 0으로 저장되며, 가스 검침 파일을 올리면 같은 키로 갱신됩니다.')
+    const validation = validateRecord(importGasMonthlyRowSchema, entry.record)
+    const normalizedRecord = validation.record
+    entry.errors.push(...validation.errors.filter((message) => message !== '가스사용량을 입력해 주세요.'))
+    rows.push(makeRowResult(entry.firstRowIndex, entry.raw, normalizedRecord, entry.errors, warnings))
+  })
+
+  return finalizePreview(sheet, rows, context.layout, 'gas-monthly')
+}
+
 function parseProductionLong(
   sheet: ImportSheetAnalysis,
   mapping: ImportMappingState,
@@ -614,7 +723,7 @@ function parseProductionDetail(
     const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
     if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
 
-    const workMonthText = readDetailFieldText(raw, headerRow, mapping, 'work_month', ['단조작업일', '작업일', '일자', '날짜'])
+    const workDateText = readDetailFieldText(raw, headerRow, mapping, 'work_date', ['단조작업일', '작업일', '일자', '날짜'])
     const lineText = readDetailFieldText(raw, headerRow, mapping, 'line_code', ['프레스별', '작업장', '라인'])
     const productText = readDetailFieldText(raw, headerRow, mapping, 'product_name', ['소재품명', '품명', '제품형상'])
     const shiftText = readDetailFieldText(raw, headerRow, mapping, 'shift', ['작업조', '주간조', '야간조', '주간', '야간'])
@@ -622,10 +731,16 @@ function parseProductionDetail(
     const workCountText = readDetailFieldText(raw, headerRow, mapping, 'work_count', ['실적', '양품'])
     const orderNoText = readDetailFieldText(raw, headerRow, mapping, 'order_no', ['수주번호'])
 
+    if (!String(workDateText ?? '').trim() && !String(orderNoText ?? '').trim() && !String(actualWeightText ?? '').trim()) {
+      return
+    }
+
     const errors: string[] = []
     const warnings: string[] = []
 
-    const workMonth = normalizeMonthDate(workMonthText, baseYm ? Number(baseYm.slice(0, 4)) : detectYearFromSheetName(sheet.sheetName))
+    const workDate =
+      normalizeDateText(workDateText, baseYm ? `${baseYm}-01` : null) ||
+      normalizeDateText(getCell(raw, autoFieldIndexMap.get('work_date')), baseYm ? `${baseYm}-01` : null)
     const line = lineLookup.get(normalizeToken(lineText)) ?? null
     const normalizedProductText = isZeroLikeText(productText) ? '' : productText
     const product = normalizedProductText ? productLookup.get(normalizeToken(normalizedProductText)) ?? null : null
@@ -635,7 +750,7 @@ function parseProductionDetail(
     const workCount = parseIntNumber(workCountText)
     const note = buildProductionDetailNote(raw, headerRow)
 
-    if (!workMonth) errors.push('작업월을 찾지 못했습니다.')
+    if (!workDate) errors.push('작업일자를 찾지 못했습니다.')
     if (!lineText && !line) errors.push('라인을 찾지 못했습니다.')
     if (lineText && !line) errors.push(`라인 "${lineText}"을 찾지 못했습니다.`)
     if (actualWeightKg == null) errors.push('생산중량을 찾지 못했습니다.')
@@ -646,7 +761,7 @@ function parseProductionDetail(
     const productName = (product?.name ?? normalizedProductText) || null
     const normalizedOrderNo = isZeroLikeText(orderNoText) ? '' : orderNoText
     const record: ProductionImportRow = {
-      work_date: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      work_date: workDate ?? (baseYm ? `${baseYm}-01` : ''),
       dept_line: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       shift,
       order_no: normalizedOrderNo || null,
@@ -664,7 +779,7 @@ function parseProductionDetail(
       ton_per_run: null,
       entered_by_name: null,
       note,
-      work_month: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      work_month: workDate ?? (baseYm ? `${baseYm}-01` : ''),
       line_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       product_name: productName,
       plan_ton: 0,
@@ -680,16 +795,21 @@ function parseProductionDetail(
     errors.push(...validation.errors)
 
     const key = [
-      normalizedRecord.work_month,
-      normalizedRecord.line_code,
-      normalizedRecord.product_name ?? '',
-      normalizedRecord.shift ?? '',
+      normalizedRecord.work_date,
+      normalizedRecord.order_no ?? normalizedRecord.line_code ?? '',
+      normalizedRecord.process,
     ].join('|')
     const existing = aggregates.get(key)
     if (existing) {
+      existing.record.order_weight += normalizedRecord.order_weight
+      existing.record.charge_weight += normalizedRecord.charge_weight
       existing.record.actual_ton += normalizedRecord.actual_ton
       existing.record.work_count += normalizedRecord.work_count
+      existing.record.work_hours += normalizedRecord.work_hours
       if (!existing.record.order_no && normalizedRecord.order_no) existing.record.order_no = normalizedRecord.order_no
+      if (existing.record.shift && normalizedRecord.shift && existing.record.shift !== normalizedRecord.shift) {
+        existing.record.shift = 'both'
+      }
       if (normalizedRecord.note) {
         existing.record.note = existing.record.note
           ? `${existing.record.note} | ${normalizedRecord.note}`
@@ -831,10 +951,10 @@ function parseProductionSummary(
         work_date: workMonth,
         dept_line: block.lineCode ?? 'UNKNOWN',
         shift: null,
-        order_no: null,
+        order_no: block.lineCode ?? block.title ?? 'SUMMARY',
         product: null,
         material: null,
-        process: '기본',
+        process: '집계',
         order_size: null,
         work_size: null,
         order_weight: kgToTon(actualKg ?? 0),
@@ -873,11 +993,15 @@ function parseProductionSummary(
       })
 
       if (existing && existing.value) {
+        existing.value.order_weight += normalizedRecord.order_weight
+        existing.value.charge_weight += normalizedRecord.charge_weight
         existing.value.plan_ton += normalizedRecord.plan_ton
         existing.value.actual_ton += normalizedRecord.actual_ton
         existing.value.hwangji_ton += normalizedRecord.hwangji_ton
         existing.value.cogging_ton += normalizedRecord.cogging_ton
+        existing.value.work_hours += normalizedRecord.work_hours
         existing.value.work_count += normalizedRecord.work_count
+        if (!existing.value.order_no && normalizedRecord.order_no) existing.value.order_no = normalizedRecord.order_no
         if (!existing.value.note && normalizedRecord.note) existing.value.note = normalizedRecord.note
         if (errors.length > 0) existing.errors.push(...errors)
         if (warnings.length > 0) existing.warnings.push(...warnings)
@@ -888,7 +1012,7 @@ function parseProductionSummary(
     })
   })
 
-  return finalizePreview(sheet, rows, 'production-wide', 'production')
+  return finalizePreview(sheet, rows, context.layout, 'production')
 }
 
 function parseProductionWide(
@@ -1135,13 +1259,14 @@ export function buildImportPreview(
   }
 
   if (mapping.datasetKey === 'gas-monthly') {
+    if (mapping.layout === 'gas-charge-daily-wide') return parseGasChargeDailyWide(sheet, mapping, context)
     return mapping.layout === 'gas-monthly-wide'
       ? parseGasMonthlyWide(sheet, mapping, context)
       : parseGasMonthlyLong(sheet, mapping, context)
   }
 
   if (mapping.datasetKey === 'production') {
-    if (looksLikeProductionSummarySheet(sheet)) return parseProductionSummary(sheet, mapping, context)
+    if (mapping.layout === 'production-summary' || looksLikeProductionSummarySheet(sheet)) return parseProductionSummary(sheet, mapping, context)
     if (mapping.layout === 'production-detail') return parseProductionDetail(sheet, mapping, context)
     return mapping.layout === 'production-wide'
       ? parseProductionWide(sheet, mapping, context)

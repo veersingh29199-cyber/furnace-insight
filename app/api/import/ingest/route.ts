@@ -177,7 +177,7 @@ export async function POST(request: Request) {
 
     const master = await loadMasterData(supabase)
     const sheets = await readImportSheets(fileValue)
-    const analyses = analyzeImportDocument(sheets, { aliases: master.aliases })
+    const analyses = analyzeImportDocument(sheets, { aliases: master.aliases, fileName: fileValue.name })
     if (analyses.length === 0) {
       return NextResponse.json({ error: '분석할 시트를 찾지 못했습니다.' }, { status: 400 })
     }

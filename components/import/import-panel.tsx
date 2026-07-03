@@ -98,8 +98,10 @@ const LAYOUT_LABELS: Partial<Record<ImportLayout, string>> = {
   long: '단건 폼',
   'gas-daily-wide': '일일 그리드',
   'gas-monthly-wide': '월별 그리드',
+  'gas-charge-daily-wide': '장입 일별 집계',
   'production-wide': '생산 월별 그리드',
   'production-detail': '생산 상세',
+  'production-summary': '생산 집계표',
   'company-wide': '전사 월별 그리드',
 }
 
@@ -112,7 +114,9 @@ function isWideLayout(layout: ImportLayout | null | undefined) {
   return (
     layout === 'gas-daily-wide' ||
     layout === 'gas-monthly-wide' ||
+    layout === 'gas-charge-daily-wide' ||
     layout === 'production-wide' ||
+    layout === 'production-summary' ||
     layout === 'company-wide'
   )
 }
@@ -273,8 +277,8 @@ export function ImportPanel() {
 
   const analyses = useMemo(() => {
     if (!rawSheets) return []
-    return analyzeImportDocument(rawSheets, { aliases: master.aliases })
-  }, [master.aliases, rawSheets])
+    return analyzeImportDocument(rawSheets, { aliases: master.aliases, fileName })
+  }, [fileName, master.aliases, rawSheets])
 
   const currentSheet = useMemo(() => {
     if (!analyses.length) return null
@@ -354,7 +358,7 @@ export function ImportPanel() {
 
     try {
       const sheets = await readImportSheets(file)
-      const detected = analyzeImportDocument(sheets, { aliases: master.aliases })
+      const detected = analyzeImportDocument(sheets, { aliases: master.aliases, fileName: file.name })
       const best = [...detected].sort((a, b) => b.confidence - a.confidence)[0] ?? detected[0] ?? null
 
       setRawSheets(sheets)
@@ -386,7 +390,7 @@ export function ImportPanel() {
     try {
       const sheetName = pasteSheetName.trim() || '붙여넣기'
       const sheets = [{ sheetName, matrix: parseDelimitedText(text) }]
-      const detected = analyzeImportDocument(sheets, { aliases: master.aliases })
+      const detected = analyzeImportDocument(sheets, { aliases: master.aliases, fileName: sheetName })
       const best = [...detected].sort((a, b) => b.confidence - a.confidence)[0] ?? detected[0] ?? null
 
       setRawSheets(sheets)
@@ -654,9 +658,12 @@ export function ImportPanel() {
 
   const renderWideControls = () => {
     if (!currentMapping || !currentSheet) return null
+    const showChargeWeightControl =
+      currentMapping.datasetKey === 'gas-monthly' ||
+      currentMapping.datasetKey === 'gas-company-monthly'
 
     return (
-      <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 md:grid-cols-3">
+      <div className={`grid gap-3 rounded-xl border bg-muted/20 p-4 ${showChargeWeightControl ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <div className="space-y-2">
           <Label>행 기준 열</Label>
           <Select
@@ -686,25 +693,27 @@ export function ImportPanel() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label>장입량 열</Label>
-          <Select
-            value={String(currentMapping.options.chargeWeightSourceKey ?? 'manual')}
-            onValueChange={(value) => updateCurrentMapping({ options: { chargeWeightSourceKey: value && value !== 'manual' ? value : null } as never })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="없음" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">없음</SelectItem>
-              {sourceOptions.map((option) => (
-                <SelectItem key={option.key} value={option.key}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showChargeWeightControl && (
+          <div className="space-y-2">
+            <Label>장입량 열</Label>
+            <Select
+              value={String(currentMapping.options.chargeWeightSourceKey ?? 'manual')}
+              onValueChange={(value) => updateCurrentMapping({ options: { chargeWeightSourceKey: value && value !== 'manual' ? value : null } as never })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="없음" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">없음</SelectItem>
+                {sourceOptions.map((option) => (
+                  <SelectItem key={option.key} value={option.key}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
     )
   }
