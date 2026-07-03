@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import ProductionRecordForm from '@/components/forms/production-record-form'
+import { InputPageSkeleton } from '@/components/input/input-page-skeleton'
 import { RouteHero } from '@/components/input/route-hero'
 import {
   createNumberKeyColumn,
@@ -309,13 +310,14 @@ export default function ProductionInputPage() {
   const queryClient = useQueryClient()
   const { data: lines } = useLines()
   const { data: products } = useProducts()
-  const initialDraft = useMemo(() => readDraft(), [])
-  const [monthYm, setMonthYm] = useState(() => initialDraft.monthYm)
-  const [mode, setMode] = useState<ProductionDraft['mode']>(() => initialDraft.mode)
-  const [gridRows, setGridRows] = useState<ProductionGridRow[]>(() => initialDraft.gridRows)
-  const [pasteText, setPasteText] = useState(() => initialDraft.pasteText)
+  const [monthYm, setMonthYm] = useState(() => currentMonthYm())
+  const [mode, setMode] = useState<ProductionDraft['mode']>('grid')
+  const [gridRows, setGridRows] = useState<ProductionGridRow[]>(() => [createBlankProductionRow()])
+  const [pasteText, setPasteText] = useState('')
   const [preview, setPreview] = useState<ParsedSpreadsheet<ProductionGridRow> | null>(null)
-  const [activeFileName, setActiveFileName] = useState(() => initialDraft.activeFileName)
+  const [activeFileName, setActiveFileName] = useState('')
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [isContentReady, setIsContentReady] = useState(false)
 
   const lineOptions = useMemo(
     () => (lines ?? []).map((line) => ({ label: `${line.code} · ${line.name}`, value: line.code })),
@@ -331,6 +333,7 @@ export default function ProductionInputPage() {
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-production-prev-month', previousMonth],
+    enabled: isHydrated,
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.productionRecords)
@@ -385,7 +388,31 @@ export default function ProductionInputPage() {
   )
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    const handle = window.setTimeout(() => {
+      const draft = readDraft()
+      setMonthYm(draft.monthYm)
+      setMode(draft.mode)
+      setGridRows(draft.gridRows)
+      setPasteText(draft.pasteText)
+      setActiveFileName(draft.activeFileName)
+      setIsHydrated(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const handle = window.setTimeout(() => {
+      setIsContentReady(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [isHydrated])
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return
 
     const handle = window.setTimeout(() => {
       window.localStorage.setItem(
@@ -402,7 +429,7 @@ export default function ProductionInputPage() {
     }, 250)
 
     return () => window.clearTimeout(handle)
-  }, [monthYm, mode, gridRows, pasteText, activeFileName])
+  }, [isHydrated, monthYm, mode, gridRows, pasteText, activeFileName])
 
   const parseProductionInput = useMemo(
     () => buildProductionParser(`${monthYm}-01`, lines, products),
@@ -497,23 +524,39 @@ export default function ProductionInputPage() {
     }
 
     for (const row of withoutProduct) {
-      const { data: existing, error: findError } = await supabase
+      const existingQuery = supabase
         .from(DB.tables.productionRecords)
-        .select('id')
+        .select('work_month,line_code,product_name,shift')
         .eq('work_month', row.work_month)
         .eq('line_code', row.line_code)
         .is('product_name', null)
-        .eq('shift', row.shift)
-        .maybeSingle()
+
+      if (row.shift == null) {
+        existingQuery.is('shift', null)
+      } else {
+        existingQuery.eq('shift', row.shift)
+      }
+
+      const { data: existingRows, error: findError } = await existingQuery.limit(1)
+      const existing = existingRows?.[0] ?? null
 
       if (findError) throw findError
 
-      if (existing?.id) {
-        const { error: updateError } = await supabase
+      if (existing) {
+        const updateQuery = supabase
           .from(DB.tables.productionRecords)
           .update(row)
-          .eq('id', existing.id)
+          .eq('work_month', row.work_month)
+          .eq('line_code', row.line_code)
+          .is('product_name', null)
 
+        if (row.shift == null) {
+          updateQuery.is('shift', null)
+        } else {
+          updateQuery.eq('shift', row.shift)
+        }
+
+        const { error: updateError } = await updateQuery
         if (updateError) throw updateError
       } else {
         const { error: insertError } = await supabase.from(DB.tables.productionRecords).insert(row)
@@ -542,6 +585,8 @@ export default function ProductionInputPage() {
   })
 
   useEffect(() => {
+    if (!isHydrated) return
+
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
@@ -551,7 +596,7 @@ export default function ProductionInputPage() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [isHydrated])
 
   const handleParsePaste = () => {
     const matrix = pasteText
@@ -661,7 +706,9 @@ export default function ProductionInputPage() {
         }
       />
 
-      <Tabs value={mode} onValueChange={(value) => setMode(value as ProductionDraft['mode'])} className="space-y-4">
+      {isContentReady ? (
+        <>
+          <Tabs value={mode} onValueChange={(value) => setMode(value as ProductionDraft['mode'])} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="grid">그리드 입력</TabsTrigger>
           <TabsTrigger value="paste">붙여넣기 / 업로드</TabsTrigger>
@@ -905,6 +952,10 @@ export default function ProductionInputPage() {
           임시저장 삭제
         </Button>
       </div>
+        </>
+      ) : (
+        <InputPageSkeleton />
+      )}
     </div>
   )
 }

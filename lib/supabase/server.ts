@@ -1,11 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createNoopSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/noop'
 
 // 서버 컴포넌트 / Server Action 용 Supabase 클라이언트
 export async function createClient() {
-  const cookieStore = await cookies()
+  if (!isSupabaseConfigured()) {
+    const noopClient = createNoopSupabaseClient()
+    return noopClient as never
+  }
 
-  return createServerClient(
+  const cookieStore = await cookies()
+  const client = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key',
     {
@@ -25,13 +30,19 @@ export async function createClient() {
       },
     }
   )
+
+  return client
 }
 
 // Route Handler / Server Action 전용 — service_role 키 사용 (RLS 우회)
 export async function createAdminClient() {
-  const cookieStore = await cookies()
+  if (!isSupabaseConfigured()) {
+    const noopClient = createNoopSupabaseClient()
+    return noopClient as never
+  }
 
-  return createServerClient(
+  const cookieStore = await cookies()
+  const client = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key',
     {
@@ -49,4 +60,6 @@ export async function createAdminClient() {
       },
     }
   )
+
+  return client
 }

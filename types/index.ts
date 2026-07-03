@@ -6,6 +6,8 @@ export type CapacityClass = '5000' | '15000' | 'ringmill'
 export type TargetScope = 'line' | 'furnace' | 'company'
 export type TargetMetric = 'gas_unit' | 'ton_per_hour' | 'output'
 export type BenchmarkOrg = '두산' | '태상' | '태웅'
+export type ImportDatasetKey = 'gas-daily' | 'gas-monthly' | 'production' | 'gas-company-monthly'
+export type ImportLayout = 'auto' | 'long' | 'gas-daily-wide' | 'gas-monthly-wide' | 'production-wide' | 'production-detail' | 'company-wide'
 
 export interface Profile {
   id: string
@@ -92,6 +94,15 @@ export interface GasDailyReading {
   furnace?: Furnace
 }
 
+export interface GasCompanyMonthly {
+  id: string
+  ym: string
+  charge_weight_kg: number
+  gas_usage: number
+  created_by: string | null
+  created_at: string
+}
+
 export interface Target {
   id: string
   year: number
@@ -136,4 +147,29 @@ export interface KpiData {
 export interface ChartDataPoint {
   month: string
   [key: string]: string | number | null
+}
+
+export interface ImportAlias {
+  id: string
+  dataset_key: ImportDatasetKey | 'shared'
+  canonical_field: string
+  alias_text: string
+  active: boolean
+  note: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface ImportTemplate {
+  id: string
+  name: string
+  dataset_key: ImportDatasetKey
+  sheet_rules: Record<string, unknown>
+  mapping_json: Record<string, unknown>
+  signature_json: Record<string, unknown>
+  active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
 }

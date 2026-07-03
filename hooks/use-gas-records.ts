@@ -58,14 +58,11 @@ export function useUpsertGasRecord() {
         entered_by_shift: opShift,
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from(DB.tables.gasRecords)
         .upsert(payload, { onConflict: DB_CONFLICT_KEYS.gasRecords })
-        .select()
-        .single()
 
       if (error) throw error
-      return data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['gas-records'] })

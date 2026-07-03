@@ -48,8 +48,7 @@ export function parseDelimitedText(text: string) {
 
   const lines = normalized
     .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.trim() !== '')
 
   return lines.map((line) => {
     if (line.includes('\t')) {
@@ -128,4 +127,3 @@ export function isTotalLikeHeader(value: unknown) {
     token.includes('계')
   )
 }
-

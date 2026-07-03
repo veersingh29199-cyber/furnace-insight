@@ -66,17 +66,14 @@ export function useUpsertProductionRecord() {
       const useConflictUpsert = payload.product_name != null && payload.product_name !== ''
 
       if (useConflictUpsert) {
-        const { data, error } = await table
-          .upsert(payload, { onConflict: DB_CONFLICT_KEYS.productionRecords })
-          .select()
-          .single()
+        const { error } = await table.upsert(payload, { onConflict: DB_CONFLICT_KEYS.productionRecords })
 
         if (error) throw error
-        return data
+        return payload
       }
 
       const existingQuery = table
-        .select('id')
+        .select('work_month,line_code,product_name,shift')
         .eq(DB.productionRecords.workMonth, payload.work_month)
         .eq(DB.productionRecords.lineCode, payload.line_code)
 
@@ -88,23 +85,32 @@ export function useUpsertProductionRecord() {
 
       existingQuery.is(DB.productionRecords.productName, null)
 
-      const { data: existing, error: existingError } = await existingQuery.maybeSingle()
+      const { data: existingRows, error: existingError } = await existingQuery.limit(1)
+      const existing = existingRows?.[0] ?? null
       if (existingError) throw existingError
 
-      if (existing?.id) {
-        const { data, error } = await table
+      if (existing) {
+        const updateQuery = table
           .update(payload)
-          .eq('id', existing.id)
-          .select()
-          .single()
+          .eq(DB.productionRecords.workMonth, payload.work_month)
+          .eq(DB.productionRecords.lineCode, payload.line_code)
+          .is(DB.productionRecords.productName, null)
+
+        if (payload.shift == null) {
+          updateQuery.is(DB.productionRecords.shift, null)
+        } else {
+          updateQuery.eq(DB.productionRecords.shift, payload.shift)
+        }
+
+        const { error } = await updateQuery
 
         if (error) throw error
-        return data
+        return payload
       }
 
-      const { data, error } = await table.insert(payload).select().single()
+      const { error } = await table.insert(payload)
       if (error) throw error
-      return data
+      return payload
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production-records'] })

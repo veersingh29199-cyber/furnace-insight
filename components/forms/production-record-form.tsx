@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { productionRecordSchema, type ProductionRecordInput } from '@/lib/validations'
 import { useUpsertProductionRecord } from '@/hooks/use-production-records'
@@ -90,11 +90,18 @@ export default function ProductionRecordForm() {
                 작업월 <span className="text-destructive">*</span>
                 <InfoTooltip content="해당 생산 실적이 발생한 월(YYYY-MM)입니다." />
               </Label>
-              <Input type="month" {...register('work_month', {
-                setValueAs: v => v ? `${v}-01` : '',
-              })}
-              defaultValue={currentMonthDate().substring(0, 7)}
-              onChange={e => setValue('work_month', e.target.value ? `${e.target.value}-01` : '')}
+              <Controller
+                control={control}
+                name="work_month"
+                render={({ field }) => (
+                  <Input
+                    type="month"
+                    value={field.value ? String(field.value).slice(0, 7) : ''}
+                    onChange={(event) => field.onChange(event.target.value ? `${event.target.value}-01` : '')}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                )}
               />
               {errors.work_month && <p className="text-xs text-destructive">{errors.work_month.message}</p>}
             </div>

@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import GasRecordForm from '@/components/forms/gas-record-form'
+import { InputPageSkeleton } from '@/components/input/input-page-skeleton'
 import { RouteHero } from '@/components/input/route-hero'
 import {
   createNumberKeyColumn,
@@ -208,13 +209,14 @@ export default function GasMonthlyInputPage() {
   const supabase = useMemo(() => createClient(), [])
   const queryClient = useQueryClient()
   const { data: furnaces } = useFurnaces()
-  const initialDraft = useMemo(() => readDraft(), [])
-  const [monthYm, setMonthYm] = useState(() => initialDraft.monthYm)
-  const [mode, setMode] = useState<GasMonthlyDraft['mode']>(() => initialDraft.mode)
-  const [gridRows, setGridRows] = useState<GasMonthlyGridRow[]>(() => initialDraft.gridRows)
-  const [pasteText, setPasteText] = useState(() => initialDraft.pasteText)
+  const [monthYm, setMonthYm] = useState(() => currentMonthYm())
+  const [mode, setMode] = useState<GasMonthlyDraft['mode']>('grid')
+  const [gridRows, setGridRows] = useState<GasMonthlyGridRow[]>(() => [createBlankGasMonthlyRow()])
+  const [pasteText, setPasteText] = useState('')
   const [preview, setPreview] = useState<ParsedSpreadsheet<GasMonthlyGridRow> | null>(null)
-  const [activeFileName, setActiveFileName] = useState(() => initialDraft.activeFileName)
+  const [activeFileName, setActiveFileName] = useState('')
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [isContentReady, setIsContentReady] = useState(false)
 
   const furnaceOptions = useMemo(
     () => (furnaces ?? []).map((furnace) => ({ label: `${furnace.code} · ${furnace.name}`, value: furnace.code })),
@@ -225,6 +227,7 @@ export default function GasMonthlyInputPage() {
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-gas-monthly-prev-month', previousMonth],
+    enabled: isHydrated,
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
@@ -266,7 +269,31 @@ export default function GasMonthlyInputPage() {
   )
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    const handle = window.setTimeout(() => {
+      const draft = readDraft()
+      setMonthYm(draft.monthYm)
+      setMode(draft.mode)
+      setGridRows(draft.gridRows)
+      setPasteText(draft.pasteText)
+      setActiveFileName(draft.activeFileName)
+      setIsHydrated(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const handle = window.setTimeout(() => {
+      setIsContentReady(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [isHydrated])
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return
 
     const handle = window.setTimeout(() => {
       window.localStorage.setItem(
@@ -283,7 +310,7 @@ export default function GasMonthlyInputPage() {
     }, 250)
 
     return () => window.clearTimeout(handle)
-  }, [monthYm, mode, gridRows, pasteText, activeFileName])
+  }, [isHydrated, monthYm, mode, gridRows, pasteText, activeFileName])
 
   const parser = useMemo(() => buildGasMonthlyParser(furnaces), [furnaces])
 
@@ -372,6 +399,8 @@ export default function GasMonthlyInputPage() {
   })
 
   useEffect(() => {
+    if (!isHydrated) return
+
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
@@ -381,7 +410,7 @@ export default function GasMonthlyInputPage() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [isHydrated])
 
   const handleParsePaste = () => {
     const matrix = pasteText
@@ -491,7 +520,9 @@ export default function GasMonthlyInputPage() {
         }
       />
 
-      <Tabs value={mode} onValueChange={(value) => setMode(value as GasMonthlyDraft['mode'])} className="space-y-4">
+      {isContentReady ? (
+        <>
+          <Tabs value={mode} onValueChange={(value) => setMode(value as GasMonthlyDraft['mode'])} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="grid">그리드 입력</TabsTrigger>
           <TabsTrigger value="paste">붙여넣기 / 업로드</TabsTrigger>
@@ -731,6 +762,10 @@ export default function GasMonthlyInputPage() {
           임시저장 삭제
         </Button>
       </div>
+        </>
+      ) : (
+        <InputPageSkeleton />
+      )}
     </div>
   )
 }
