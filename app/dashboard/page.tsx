@@ -16,6 +16,7 @@ import {
   formatGasUnit, formatTonPerHour, formatYearMonth,
   detectOutliers, currentMonthDate
 } from '@/lib/utils'
+import { normalizeMonthDate } from '@/lib/input/common'
 
 import { InputStatusCard } from '@/components/dashboard/input-status-card'
 
@@ -30,7 +31,7 @@ export default function DashboardPage() {
   const { data: gasRecords } = useGasRecords({ ymFrom: sixMonthsAgo })
 
   // 이상치 감지 (이번달 가스원단위 기준)
-  const thisMonthGas = gasRecords?.filter(r => r.ym === currentMonthDate()) ?? []
+  const thisMonthGas = gasRecords?.filter(r => normalizeMonthDate(r.ym) === currentMonthDate()) ?? []
   const gasUnits = thisMonthGas.map(r => r.gas_unit ?? 0).filter(v => v > 0)
   const outlierIndices = detectOutliers(gasUnits)
   const outlierFurnaces = thisMonthGas
@@ -38,12 +39,12 @@ export default function DashboardPage() {
     .map(r => r.furnace?.code ?? '-')
 
   // 가열로별 월별 원단위 추이 데이터 가공
-  const months = [...new Set(gasRecords?.map(r => r.ym.substring(0, 7)) ?? [])].sort()
+  const months = [...new Set(gasRecords?.map(r => normalizeMonthDate(r.ym)?.substring(0, 7) ?? r.ym.substring(0, 7)) ?? [])].sort()
   const furnaceCodes = [...new Set(gasRecords?.map(r => r.furnace?.code ?? '') ?? [])].filter(Boolean).slice(0, 7)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
     furnaceCodes.forEach(code => {
-      const rec = gasRecords?.find(r => r.ym.startsWith(m) && r.furnace?.code === code)
+      const rec = gasRecords?.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(m) && r.furnace?.code === code)
       row[code] = rec?.gas_unit ?? null
     })
     return row

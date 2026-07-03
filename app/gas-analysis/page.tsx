@@ -20,6 +20,7 @@ import { Info, AlertTriangle, Calculator, Flame, CheckCircle2, XCircle } from 'l
 import {
   formatGasUnit, kgToTon, detectOutliers, cn
 } from '@/lib/utils'
+import { normalizeMonthDate } from '@/lib/input/common'
 
 const supabase = createClient()
 
@@ -97,11 +98,11 @@ export default function GasAnalysisPage() {
   }, [furnaces, allGas])
 
   // ── 추이 데이터 가공 (최근 12개월, 19개 가동 호기 전체 순서대로) ──
-  const months = [...new Set(allGas?.map(r => r.ym.substring(0, 7)) ?? [])].sort().slice(-12)
+  const months = [...new Set(allGas?.map(r => normalizeMonthDate(r.ym)?.substring(0, 7) ?? r.ym.substring(0, 7)) ?? [])].sort().slice(-12)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
     activeFurnaceCodes.forEach(code => {
-      const rec = allGas?.find(r => r.ym.startsWith(m) && getFurnaceCode(r) === code)
+      const rec = allGas?.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(m) && getFurnaceCode(r) === code)
       row[code] = getEffectiveGasUnit(rec)
     })
     return row
@@ -109,7 +110,7 @@ export default function GasAnalysisPage() {
 
   // ── 이상치 감지 (이번달) ──
   const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
-  const thisMonthGas = (allGas?.filter(r => r.ym === thisMonth) ?? []).filter(r => {
+  const thisMonthGas = (allGas?.filter(r => normalizeMonthDate(r.ym) === thisMonth) ?? []).filter(r => {
     const c = getFurnaceCode(r)
     return c !== '7호기'
   })
@@ -134,7 +135,7 @@ export default function GasAnalysisPage() {
         x: effWeightTon,
         y: u,
         code: cStr,
-        ym:   r.ym.substring(0, 7),
+        ym:   (normalizeMonthDate(r.ym) ?? r.ym).substring(0, 7),
         isOutlier: outlierSet.has(i),
       }
     })
@@ -176,7 +177,7 @@ export default function GasAnalysisPage() {
     const latestMonth = months[months.length - 1] || new Date().toISOString().substring(0, 7)
 
     return activeFurnaceCodes.map(furnaceCode => {
-      const rec = allGas.find(r => r.ym.startsWith(latestMonth) && getFurnaceCode(r) === furnaceCode)
+      const rec = allGas.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(latestMonth) && getFurnaceCode(r) === furnaceCode)
       const officialUsage = rec ? Number(rec.gas_usage || 0) : 0
 
       const dailyMatches = (dailyReadings || []).filter(d => {

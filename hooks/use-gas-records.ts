@@ -6,15 +6,9 @@ import { toast } from 'sonner'
 import type { GasRecord } from '@/types'
 import type { GasRecordInput } from '@/lib/validations'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
+import { normalizeMonthDate } from '@/lib/input/common'
 
 const supabase = createClient()
-
-function normalizeMonthDate(value?: string) {
-  if (!value) return null
-  if (/^\d{4}-\d{2}-01$/.test(value)) return value
-  if (/^\d{4}-\d{2}$/.test(value)) return `${value}-01`
-  return value
-}
 
 // ─────────────────────────────────────────────
 // 가스 검침 조회 훅
@@ -42,7 +36,10 @@ export function useGasRecords(params?: {
 
       const { data, error } = await query
       if (error) throw error
-      return data as GasRecord[]
+      return (data ?? []).map((row) => ({
+        ...row,
+        ym: normalizeMonthDate(row.ym) ?? row.ym,
+      })) as GasRecord[]
     },
   })
 }
@@ -99,7 +96,10 @@ export function useGasStats(ym: string) {
         .not('gas_unit', 'is', null)
 
       if (error) throw error
-      return data
+      return (data ?? []).map((row) => ({
+        ...row,
+        ym: normalizeMonthDate((row as { ym?: string }).ym) ?? (row as { ym?: string }).ym,
+      }))
     },
   })
 }

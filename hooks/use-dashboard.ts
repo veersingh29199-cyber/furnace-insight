@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { calcAchievementRate, calcTonPerHour, currentMonthDate } from '@/lib/utils'
+import { normalizeMonthDate } from '@/lib/input/common'
 import { DB } from '@/types/db'
 import type { Benchmark, Target } from '@/types'
 
@@ -49,7 +50,7 @@ export function useDashboardKpi() {
     queryKey: ['dashboard-kpi'],
     queryFn: async () => {
       const defaultMonth = currentMonthDate()
-      let activeMonth = defaultMonth
+      let activeMonth = normalizeMonthDate(defaultMonth) ?? defaultMonth
 
       let { data: gasThis } = await supabase
         .from('gas_records')
@@ -65,8 +66,11 @@ export function useDashboardKpi() {
           .order('ym', { ascending: false })
           .limit(10)
         if (latestGas && latestGas.length > 0) {
-          activeMonth = latestGas[0].ym
-          gasThis = latestGas.filter((row) => row.ym === activeMonth)
+          const latestMonth = normalizeMonthDate(latestGas[0].ym)
+          if (latestMonth) {
+            activeMonth = latestMonth
+            gasThis = latestGas.filter((row) => normalizeMonthDate(row.ym) === activeMonth)
+          }
         }
       }
 
