@@ -84,7 +84,7 @@ export default function ReportsPage() {
     },
   })
 
-  const { data: targets } = useTargets(Number(selectedYear))
+  const { data: targets } = useTargets()
 
   const lineNameMap = useMemo(
     () => new Map((lines ?? []).map((line) => [line.code, line.name])),

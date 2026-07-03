@@ -480,7 +480,7 @@ export default function ProductionInputPage() {
   const { data: lines } = useLines()
   const { data: products } = useProducts()
   const { data: furnaces } = useFurnaces()
-  const { data: targets } = useTargets(Number(todayDate().slice(0, 4)))
+  const { data: targets } = useTargets()
 
   const [monthYm, setMonthYm] = useState(() => currentMonthYm())
   const [mode, setMode] = useState<ProductionDraft['mode']>('grid')

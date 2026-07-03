@@ -2,14 +2,15 @@ import type { Metadata } from 'next'
 import DashboardShell from '@/components/layout/dashboard-shell'
 
 export const metadata: Metadata = {
-  title: '스마트 파일 임포트',
+  title: '파일 업로드',
+  description: '호환용 /import 경로입니다. 실제 업로드 화면은 /upload에서 제공합니다.',
 }
 
 export default function ImportLayout({ children }: { children: React.ReactNode }) {
   return (
     <DashboardShell
-      pageTitle="스마트 파일 임포트"
-      pageDesc="제각각인 엑셀/CSV 양식을 앱 표준 형태로 자동 감지하고, 매핑을 확인한 뒤 upsert 저장합니다."
+      pageTitle="파일 업로드"
+      pageDesc="호환용 경로입니다. 새 업로드 화면으로 자동 이동합니다."
     >
       {children}
     </DashboardShell>

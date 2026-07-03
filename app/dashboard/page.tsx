@@ -162,7 +162,7 @@ export default function DashboardPage() {
                 <p className="font-medium text-muted-foreground">가스 검침 데이터가 없습니다</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   <a href="/input" className="text-primary underline">데이터 입력</a>에서 가열로 검침을 입력하거나,{' '}
-                  <a href="/import" className="text-primary underline">엑셀 임포터</a>로 일괄 적재해 보세요.
+                  <a href="/upload" className="text-primary underline">파일 업로드</a>로 일괄 적재해 보세요.
                 </p>
               </div>
             </CardContent>
@@ -180,7 +180,7 @@ export default function DashboardPage() {
             { href: '/productivity',  label: '생산성 분석',     icon: BarChart3,     desc: '라인·제품별 추이' },
             { href: '/gas-analysis',  label: '가스원단위 분석', icon: Flame,         desc: '호기별 원단위' },
             { href: '/input',         label: '데이터 입력',     icon: Clock,         desc: '실적·검침 입력' },
-            { href: '/import',        label: '엑셀 임포터',     icon: TrendingDown,  desc: '과거 데이터 적재' },
+            { href: '/upload',        label: '파일 업로드',     icon: TrendingDown,  desc: '과거 데이터 적재' },
           ].map(({ href, label, icon: Icon, desc }) => (
             <a key={href} href={href}
               className="flex items-start gap-3 p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-all group">

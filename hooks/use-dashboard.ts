@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { calcAchievementRate, calcTonPerHour, currentMonthDate } from '@/lib/utils'
+import { DB } from '@/types/db'
 import type { Benchmark, Target } from '@/types'
 
 const supabase = createClient()
@@ -102,39 +103,18 @@ export function useDashboardKpi() {
         .gte('work_date', lastYearMonthRange.from)
         .lte('work_date', lastYearMonthRange.to)
 
-      let { data: targets } = await supabase
-        .from('targets')
-        .select('metric, target_value, scope, year')
-        .eq('year', activeYear)
-        .eq('scope', 'company')
+      const { data: targets } = await supabase
+        .from(DB.tables.targets)
+        .select(`${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.note}`)
+        .eq(DB.targets.scope, 'company')
+        .order(DB.targets.metric, { ascending: true })
 
-      if (!targets || targets.length === 0) {
-        const { data: allTargets } = await supabase
-          .from('targets')
-          .select('metric, target_value, scope, year')
-          .eq('scope', 'company')
-          .order('year', { ascending: false })
-        if (allTargets && allTargets.length > 0) {
-          const latestYear = allTargets[0].year
-          targets = allTargets.filter((row) => row.year === latestYear)
-        }
-      }
-
-      let { data: benchmarks } = await supabase
-        .from('benchmarks')
-        .select('org, metric, product_or_scope, value, year')
-        .eq('year', activeYear)
-
-      if (!benchmarks || benchmarks.length === 0) {
-        const { data: allBm } = await supabase
-          .from('benchmarks')
-          .select('org, metric, product_or_scope, value, year')
-          .order('year', { ascending: false })
-        if (allBm && allBm.length > 0) {
-          const latestYear = allBm[0].year
-          benchmarks = allBm.filter((row) => row.year === latestYear)
-        }
-      }
+      const { data: benchmarks } = await supabase
+        .from(DB.tables.benchmarks)
+        .select(`${DB.benchmarks.org}, ${DB.benchmarks.metric}, ${DB.benchmarks.scope}, ${DB.benchmarks.value}`)
+        .order(DB.benchmarks.org, { ascending: true })
+        .order(DB.benchmarks.metric, { ascending: true })
+        .order(DB.benchmarks.scope, { ascending: true })
 
       const avgGasThis = gasThis && gasThis.length > 0
         ? gasThis.reduce((sum, row) => sum + Number(row.gas_unit ?? 0), 0) / gasThis.length
@@ -249,48 +229,29 @@ export function useTargets(year?: number) {
   return useQuery({
     queryKey: ['targets', year],
     queryFn: async () => {
-      let query = supabase.from('targets').select('id, year, scope, ref_id, metric, target_value, note')
-      if (year != null) {
-        query = query.eq('year', year)
-      }
-
-      const { data, error } = await query.order('year', { ascending: false }).order('metric', { ascending: true })
+      const { data, error } = await supabase
+        .from(DB.tables.targets)
+        .select('id, scope, ref, metric, target_value, note')
+        .order(DB.targets.scope, { ascending: true })
+        .order(DB.targets.ref, { ascending: true })
+        .order(DB.targets.metric, { ascending: true })
       if (error) throw error
-
-      if (year == null && (!data || data.length === 0)) {
-        const { data: latest } = await supabase
-          .from('targets')
-          .select('id, year, scope, ref_id, metric, target_value, note')
-          .order('year', { ascending: false })
-          .order('metric', { ascending: true })
-        return (latest ?? []) as Target[]
-      }
-
       return (data ?? []) as Target[]
     },
   })
 }
 
-export function useBenchmarks(year?: number) {
+export function useBenchmarks() {
   return useQuery({
-    queryKey: ['benchmarks', year],
+    queryKey: ['benchmarks'],
     queryFn: async () => {
-      let query = supabase.from('benchmarks').select('id, org, metric, product_or_scope, value, year')
-      if (year != null) {
-        query = query.eq('year', year)
-      }
-
-      const { data, error } = await query.order('year', { ascending: false })
+      const { data, error } = await supabase
+        .from(DB.tables.benchmarks)
+        .select('id, org, metric, scope, value')
+        .order(DB.benchmarks.org, { ascending: true })
+        .order(DB.benchmarks.metric, { ascending: true })
+        .order(DB.benchmarks.scope, { ascending: true })
       if (error) throw error
-
-      if (year == null && (!data || data.length === 0)) {
-        const { data: latest } = await supabase
-          .from('benchmarks')
-          .select('id, org, metric, product_or_scope, value, year')
-          .order('year', { ascending: false })
-        return (latest ?? []) as Benchmark[]
-      }
-
       return (data ?? []) as Benchmark[]
     },
   })

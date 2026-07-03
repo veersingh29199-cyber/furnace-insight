@@ -58,7 +58,7 @@ export default function GasAnalysisPage() {
   const { data: furnaces }  = useFurnaces()
   const { data: products }  = useProducts()
   const { data: benchmarks } = useBenchmarks()
-  const { data: targets }    = useTargets(new Date().getFullYear())
+  const { data: targets }    = useTargets()
 
   const { data: dailyReadings } = useQuery({
     queryKey: ['gas-daily-all'],
@@ -157,10 +157,10 @@ export default function GasAnalysisPage() {
   }, [products, mixInputs, mixTotal])
 
   // ── 태상 vs 태웅 비교 ──
-  const taesangBench = benchmarks?.find(b => b.org === '태상' && b.metric === 'gas_unit' && b.product_or_scope === '전사')
-  const taesangActual = benchmarks?.find(b => b.org === '태상' && b.metric === 'gas_unit' && b.product_or_scope === '실적')
-  const taewungBench  = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.product_or_scope === '전사')
-  const taewungActual = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.product_or_scope === '실적')
+  const taesangBench = benchmarks?.find(b => b.org === '태상' && b.metric === 'gas_unit' && b.scope === '전사')
+  const taesangActual = benchmarks?.find(b => b.org === '태상' && b.metric === 'gas_unit' && b.scope === '실적')
+  const taewungBench  = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.scope === '전사')
+  const taewungActual = benchmarks?.find(b => b.org === '태웅' && b.metric === 'gas_unit' && b.scope === '실적')
   const validGasRecords = (allGas ?? []).filter(r => {
     const c = getFurnaceCode(r)
     return c !== '7호기' && getEffectiveGasUnit(r) != null

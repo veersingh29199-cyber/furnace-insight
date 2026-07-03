@@ -32,7 +32,7 @@ function yearBounds(year: string) {
 export default function DataHealthPage() {
   const currentYear = new Date().getFullYear().toString()
   const { from, to } = yearBounds(currentYear)
-  const { data: targets } = useTargets(Number(currentYear))
+  const { data: targets } = useTargets()
 
   const tphTarget = targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company')?.target_value ?? 20
   const gasTarget = targets?.find((target) => target.metric === 'gas_unit' && target.scope === 'company')?.target_value ?? 150

@@ -16,7 +16,7 @@ interface BenchmarkGaugeProps {
   benchmarks: Array<{
     org: string
     metric: string
-    product_or_scope: string
+    scope: string
     value: number
   }>
 }
@@ -79,12 +79,12 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
             : (diff != null && diff > 0)
 
           return (
-            <div key={`${b.org}-${b.product_or_scope}`}
+            <div key={`${b.org}-${b.scope}`}
               className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                 <span className="text-sm">{b.org}</span>
-                <Badge variant="outline" className="text-xs h-4 px-1">{b.product_or_scope}</Badge>
+                <Badge variant="outline" className="text-xs h-4 px-1">{b.scope}</Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm">{b.value.toFixed(1)} {unit}</span>

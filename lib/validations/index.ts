@@ -62,9 +62,8 @@ export const productSchema = z.object({
 export type ProductInput = z.infer<typeof productSchema>
 
 export const targetSchema = z.object({
-  year: z.coerce.number().int().min(2000).max(2100),
   scope: z.enum(['line', 'furnace', 'company']),
-  ref_id: z.string().nullable().optional(),
+  ref: requiredText,
   metric: z.enum(['gas_unit', 'ton_per_hour', 'output']),
   target_value: positiveNum,
   note: z.string().trim().nullable().optional(),
@@ -75,9 +74,8 @@ export type TargetInput = z.infer<typeof targetSchema>
 export const benchmarkSchema = z.object({
   org: z.enum(['두산', '태상', '태웅']),
   metric: z.enum(['gas_unit', 'ton_per_hour', 'output']),
-  product_or_scope: requiredText,
+  scope: requiredText,
   value: positiveNum,
-  year: z.coerce.number().int().min(2000).max(2100),
 })
 
 export type BenchmarkInput = z.infer<typeof benchmarkSchema>

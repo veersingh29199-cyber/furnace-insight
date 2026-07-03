@@ -36,7 +36,7 @@ export default function ProductivityPage() {
   const [selectedLine, setSelectedLine] = useState<string>('all')
   const { data: lines } = useLines()
   const { data: records = [] } = useProductionTrend(3)
-  const { data: targets } = useTargets(new Date().getFullYear())
+  const { data: targets } = useTargets()
 
   const targetTph = targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company')?.target_value ?? 20
 

@@ -124,9 +124,8 @@ export interface GasCompanyMonthly {
 
 export interface Target {
   id: string
-  year: number
   scope: TargetScope
-  ref_id: string | null
+  ref: string
   metric: TargetMetric
   target_value: number
   note: string | null
@@ -136,9 +135,8 @@ export interface Benchmark {
   id: string
   org: BenchmarkOrg
   metric: TargetMetric
-  product_or_scope: string
+  scope: string
   value: number
-  year: number
 }
 
 export interface AuditLog {

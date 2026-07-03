@@ -1,6 +1,5 @@
-import { ImportPanel } from '@/components/import/import-panel'
+import { redirect } from 'next/navigation'
 
 export default function ImportPage() {
-  return <ImportPanel />
+  redirect('/upload')
 }
-

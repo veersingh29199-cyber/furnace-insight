@@ -120,8 +120,8 @@ export default function InputHomePage() {
             <Link href="/input/production" className={buttonVariants({ className: 'gap-2' })}>
               지금 입력 시작 <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/import" className={buttonVariants({ variant: 'outline', className: 'gap-2' })}>
-              기존 임포트 <Upload className="h-4 w-4" />
+            <Link href="/upload" className={buttonVariants({ variant: 'outline', className: 'gap-2' })}>
+              파일 업로드 <Upload className="h-4 w-4" />
             </Link>
           </>
         )}
