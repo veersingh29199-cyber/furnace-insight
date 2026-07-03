@@ -68,8 +68,8 @@ export default function DataHealthPage() {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
         .select('*, furnace:furnaces(code, name)')
-        .gte(DB.gasRecords.ym, `${currentYear}-01`)
-        .lte(DB.gasRecords.ym, `${currentYear}-12`)
+        .gte(DB.gasRecords.ym, `${currentYear}-01-01`)
+        .lte(DB.gasRecords.ym, `${currentYear}-12-31`)
         .order(DB.gasRecords.ym, { ascending: false })
 
       if (error) throw error

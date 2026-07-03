@@ -7,11 +7,14 @@ import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertCircle, ArrowRight, ClipboardList, Flame, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
+import { currentMonthDate } from '@/lib/utils'
+import { DB } from '@/types/db'
 
 const supabase = createClient()
 
 export function InputStatusCard() {
-  const currentYm = new Date().toISOString().slice(0, 7) // 예: 2026-07
+  const currentMonth = currentMonthDate()
+  const currentYm = currentMonth.slice(0, 7) // 예: 2026-07
   const todayDate = new Date().toISOString().slice(0, 10)
   const lastDay = new Date(Number(currentYm.slice(0, 4)), Number(currentYm.slice(5, 7)), 0).getDate()
 
@@ -28,7 +31,10 @@ export function InputStatusCard() {
   const { data: gasCount = 0 } = useQuery({
     queryKey: ['status-gas', currentYm],
     queryFn: async () => {
-      const { count } = await supabase.from('gas_records').select('*', { count: 'exact', head: true }).eq('ym', currentYm)
+      const { count } = await supabase
+        .from(DB.tables.gasRecords)
+        .select('*', { count: 'exact', head: true })
+        .eq(DB.gasRecords.ym, currentMonth)
       return count || 0
     },
   })

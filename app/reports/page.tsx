@@ -124,8 +124,8 @@ export default function ReportsPage() {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
         .select('*, furnace:furnaces(code, name)')
-        .gte(DB.gasRecords.ym, `${selectedYear}-01`)
-        .lte(DB.gasRecords.ym, `${selectedYear}-12`)
+        .gte(DB.gasRecords.ym, `${selectedYear}-01-01`)
+        .lte(DB.gasRecords.ym, `${selectedYear}-12-31`)
 
       if (error) throw error
       return data ?? []
@@ -138,8 +138,8 @@ export default function ReportsPage() {
       const { data, error } = await supabase
         .from(DB.tables.gasCompanyMonthly)
         .select('*')
-        .gte(DB.gasCompanyMonthly.ym, `${selectedYear}-01`)
-        .lte(DB.gasCompanyMonthly.ym, `${selectedYear}-12`)
+        .gte(DB.gasCompanyMonthly.ym, `${selectedYear}-01-01`)
+        .lte(DB.gasCompanyMonthly.ym, `${selectedYear}-12-31`)
         .order(DB.gasCompanyMonthly.ym)
 
       if (error) throw error
