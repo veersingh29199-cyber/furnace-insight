@@ -729,9 +729,6 @@ export default function ProductionInputPage() {
       return
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const operatorName =
       typeof window !== 'undefined' ? window.localStorage.getItem('furnace_operator_name') || '현장 입력' : null
     const operatorShift =
@@ -743,8 +740,8 @@ export default function ProductionInputPage() {
     for (let index = 0; index < payloads.length; index += batchSize) {
       const batch = payloads.slice(index, index + batchSize).map((payload) => ({
         ...payload,
-        created_by: user?.id ?? null,
-        updated_by: user?.id ?? null,
+        created_by: null,
+        updated_by: null,
         entered_by_name: operatorName,
         entered_by_shift: operatorShift,
         updated_at: new Date().toISOString(),
@@ -761,6 +758,7 @@ export default function ProductionInputPage() {
     await queryClient.invalidateQueries({ queryKey: ['production-records'] })
     await queryClient.invalidateQueries({ queryKey: ['dashboard-kpi'] })
     await queryClient.invalidateQueries({ queryKey: ['input-production-month', monthYm] })
+    await queryClient.invalidateQueries({ queryKey: ['input-home-production-count'] })
     window.localStorage.removeItem(DRAFT_KEY)
     setPreview(null)
     toast.success(`${saved}건을 저장했습니다.`)

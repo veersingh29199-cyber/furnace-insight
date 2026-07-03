@@ -40,7 +40,6 @@ export function useUpsertProductionRecord() {
 
   return useMutation({
     mutationFn: async (input: ProductionRecordInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '현장 입력' : null
       const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
 
@@ -61,8 +60,8 @@ export function useUpsertProductionRecord() {
         work_count: input.work_count,
         entered_by_name: input.entered_by_name || opName,
         note: input.note ?? null,
-        created_by: user?.id || null,
-        updated_by: user?.id || null,
+        created_by: null,
+        updated_by: null,
         entered_by_shift: opShift,
         updated_at: new Date().toISOString(),
       }
@@ -77,6 +76,7 @@ export function useUpsertProductionRecord() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production-records'] })
       qc.invalidateQueries({ queryKey: ['dashboard-kpi'] })
+      qc.invalidateQueries({ queryKey: ['input-production-month'] })
       qc.invalidateQueries({ queryKey: ['input-home-production-count'] })
       toast.success('생산 실적이 저장되었습니다.')
     },

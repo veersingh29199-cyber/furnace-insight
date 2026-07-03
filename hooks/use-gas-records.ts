@@ -60,14 +60,13 @@ export function useUpsertGasRecord() {
 
   return useMutation({
     mutationFn: async (input: GasRecordInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
       const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
 
       const payload = {
         ...input,
         order_no: input.order_no || null,
-        created_by: user?.id || null,
+        created_by: null,
         entered_by_name: opName,
         entered_by_shift: opShift,
       }
@@ -81,6 +80,7 @@ export function useUpsertGasRecord() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['gas-records'] })
       qc.invalidateQueries({ queryKey: ['dashboard-kpi'] })
+      qc.invalidateQueries({ queryKey: ['input-home-gas-count'] })
       toast.success('가스 검침이 저장되었습니다.')
     },
     onError: (err: Error) => {

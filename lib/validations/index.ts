@@ -4,6 +4,10 @@ const positiveNum = z.coerce
   .number({ message: '숫자를 입력해 주세요.' })
   .min(0, '0 이상 값을 입력해 주세요.')
 
+const requiredPositiveNum = z.coerce
+  .number({ message: '숫자를 입력해 주세요.' })
+  .gt(0, '0보다 큰 값을 입력해 주세요.')
+
 const requiredText = z.string().trim().min(1, '필수 항목입니다.')
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 형식이어야 합니다.')
 const monthString = z.string().regex(/^\d{4}-\d{2}-01$/, 'YYYY-MM-01 형식이어야 합니다.')
@@ -18,11 +22,11 @@ export const productionRecordSchema = z.object({
   process: requiredText,
   order_size: z.string().trim().nullable().optional(),
   work_size: z.string().trim().nullable().optional(),
-  order_weight: positiveNum,
-  charge_weight: positiveNum,
+  order_weight: requiredPositiveNum,
+  charge_weight: requiredPositiveNum,
   furnace_code: requiredText,
-  work_hours: positiveNum,
-  work_count: z.coerce.number().int('정수를 입력해 주세요.').min(0, '0 이상 값을 입력해 주세요.'),
+  work_hours: requiredPositiveNum,
+  work_count: z.coerce.number().int('정수를 입력해 주세요.').min(1, '1 이상 값을 입력해 주세요.'),
   entered_by_name: z.string().trim().nullable().optional(),
   note: z.string().trim().nullable().optional(),
 })
@@ -33,8 +37,8 @@ export const gasRecordSchema = z.object({
   ym: monthString,
   furnace_code: requiredText,
   order_no: z.string().trim().nullable().optional(),
-  charge_weight_kg: positiveNum,
-  gas_usage: positiveNum,
+  charge_weight_kg: requiredPositiveNum,
+  gas_usage: requiredPositiveNum,
   source: z.enum(['meter', 'bill', 'self']),
   note: z.string().trim().nullable().optional(),
 })
@@ -46,7 +50,7 @@ export const gasDailyReadingSchema = z.object({
   furnace_code: requiredText,
   order_no: z.string().trim().nullable().optional(),
   shift: z.enum(['day', 'night', 'both']).nullable().optional(),
-  value: positiveNum,
+  value: requiredPositiveNum,
 })
 
 export type GasDailyReadingInput = z.infer<typeof gasDailyReadingSchema>

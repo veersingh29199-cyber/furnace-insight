@@ -5,7 +5,6 @@ import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Save, Calculator } from 'lucide-react'
-import { toast } from 'sonner'
 import { productionRecordSchema, type ProductionRecordInput } from '@/lib/validations'
 import { useUpsertProductionRecord } from '@/hooks/use-production-records'
 import { useFurnaces, useLines, useProducts } from '@/hooks/use-dashboard'
@@ -133,7 +132,6 @@ export default function ProductionRecordForm() {
       entered_by_name: data.entered_by_name ?? '',
       note: '',
     })
-    toast.success('생산 실적을 저장했습니다.')
   }
 
   return (

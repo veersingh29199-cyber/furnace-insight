@@ -358,9 +358,6 @@ export default function GasMonthlyInputPage() {
       return
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const operatorName =
       typeof window !== 'undefined' ? window.localStorage.getItem('furnace_operator_name') || '현장 입력' : null
     const operatorShift =
@@ -372,7 +369,7 @@ export default function GasMonthlyInputPage() {
     for (let index = 0; index < payloads.length; index += batchSize) {
       const batch = payloads.slice(index, index + batchSize).map((payload) => ({
         ...payload,
-        created_by: user?.id ?? null,
+        created_by: null,
         entered_by_name: operatorName,
         entered_by_shift: operatorShift,
       }))
@@ -384,6 +381,7 @@ export default function GasMonthlyInputPage() {
 
     await queryClient.invalidateQueries({ queryKey: ['gas-records'] })
     await queryClient.invalidateQueries({ queryKey: ['dashboard-kpi'] })
+    await queryClient.invalidateQueries({ queryKey: ['input-home-gas-count'] })
     window.localStorage.removeItem(DRAFT_KEY)
     setPreview(null)
     toast.success(`${saved}건을 저장했습니다.`)
