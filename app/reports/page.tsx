@@ -84,7 +84,7 @@ export default function ReportsPage() {
     },
   })
 
-  const { data: targets } = useTargets()
+  const { data: targets } = useTargets(Number(selectedYear))
 
   const lineNameMap = useMemo(
     () => new Map((lines ?? []).map((line) => [line.code, line.name])),
@@ -96,8 +96,8 @@ export default function ReportsPage() {
     [furnaces]
   )
 
-  const targetTph = targets?.find((row) => row.metric === 'ton_per_hour' && row.scope === 'company')?.target_value ?? 20
-  const gasTarget = targets?.find((row) => row.metric === 'gas_unit' && row.scope === 'company')?.target_value ?? 150
+  const targetTph = targets?.find((row) => row.metric === 'ton_per_hour' && row.scope === 'company' && row.year === Number(selectedYear))?.target_value ?? 20
+  const gasTarget = targets?.find((row) => row.metric === 'gas_unit' && row.scope === 'company' && row.year === Number(selectedYear))?.target_value ?? 150
 
   const { data: prodRecords = [], isLoading: prodLoading } = useQuery({
     queryKey: ['report-prod', selectedYear, selectedLine],

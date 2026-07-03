@@ -9,6 +9,13 @@ import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const supabase = createClient()
 
+function normalizeMonthDate(value?: string) {
+  if (!value) return null
+  if (/^\d{4}-\d{2}-01$/.test(value)) return value
+  if (/^\d{4}-\d{2}$/.test(value)) return `${value}-01`
+  return value
+}
+
 // ─────────────────────────────────────────────
 // 가스 검침 조회 훅
 // ─────────────────────────────────────────────
@@ -21,13 +28,15 @@ export function useGasRecords(params?: {
   return useQuery({
     queryKey: ['gas-records', params],
     queryFn: async () => {
+      const ymFrom = normalizeMonthDate(params?.ymFrom)
+      const ymTo = normalizeMonthDate(params?.ymTo)
       let query = supabase
         .from(DB.tables.gasRecords)
         .select('*, furnace:furnaces(code, name)')
         .order('ym', { ascending: false })
 
-      if (params?.ymFrom) query = query.gte('ym', params.ymFrom)
-      if (params?.ymTo)   query = query.lte('ym', params.ymTo)
+      if (ymFrom) query = query.gte('ym', ymFrom)
+      if (ymTo) query = query.lte('ym', ymTo)
       if (params?.furnaceCode) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceCode)
       else if (params?.furnaceId) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceId)
 
@@ -82,10 +91,11 @@ export function useGasStats(ym: string) {
   return useQuery({
     queryKey: ['gas-stats', ym],
     queryFn: async () => {
+      const month = normalizeMonthDate(ym) ?? ym
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
         .select('gas_unit, furnace:furnaces(code, name)')
-        .eq(DB.gasRecords.ym, ym)
+        .eq(DB.gasRecords.ym, month)
         .not('gas_unit', 'is', null)
 
       if (error) throw error

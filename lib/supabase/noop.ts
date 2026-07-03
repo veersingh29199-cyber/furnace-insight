@@ -65,6 +65,7 @@ function createInitialStore(): TableStore {
       id: index + 1,
       code,
       name: code,
+      dept: index < 5 ? 'P5' : index < 10 ? 'P8' : index < 15 ? 'P15' : 'R/M',
       active: true,
       created_at: FIXED_TIMESTAMP,
       updated_at: FIXED_TIMESTAMP,
@@ -120,6 +121,20 @@ function createInitialStore(): TableStore {
     import_uploads: [],
     targets: [],
     benchmarks: [],
+    work_standards: [],
+    raw_material_specs: [],
+    app_settings: [
+      {
+        key: 'operating_hours_per_day',
+        value: 24,
+        note: '가동시간 기준값',
+      },
+      {
+        key: 'shifts_per_day',
+        value: 2,
+        note: '하루 작업조 수',
+      },
+    ],
     profiles: [],
   }
 }

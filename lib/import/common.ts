@@ -168,6 +168,33 @@ export function normalizeLineCode(value: unknown) {
   return text
 }
 
+export function normalizeTargetScopeText(value: unknown) {
+  const token = normalizeToken(value)
+  if (!token) return null
+  if (token.includes('company') || token.includes('전사') || token.includes('전체')) return 'company'
+  if (token.includes('dept') || token.includes('부서')) return 'dept'
+  if (token.includes('line') || token.includes('라인')) return 'line'
+  if (token.includes('furnace') || token.includes('호기')) return 'furnace'
+  return null
+}
+
+export function normalizeTargetMetricText(value: unknown) {
+  const token = normalizeToken(value)
+  if (!token) return null
+  if (token.includes('gas') || token.includes('원단위') || token.includes('가스')) return 'gas_unit'
+  if (token.includes('tph') || token.includes('tonperhour') || token.includes('시간당') || token.includes('생산성')) return 'ton_per_hour'
+  if (token.includes('output') || token.includes('달성') || token.includes('생산량')) return 'output'
+  return null
+}
+
+export function normalizeWorkBasisText(value: unknown) {
+  const token = normalizeToken(value)
+  if (!token) return null
+  if (token.includes('charge') || token.includes('장입') || token.includes('투입') || token.includes('원단위')) return 'charge'
+  if (token.includes('product') || token.includes('수주') || token.includes('제품') || token.includes('작업')) return 'product'
+  return null
+}
+
 export function normalizeNumericText(value: unknown) {
   return parseLooseNumber(value)
 }

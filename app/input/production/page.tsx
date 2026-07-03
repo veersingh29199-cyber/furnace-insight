@@ -480,7 +480,7 @@ export default function ProductionInputPage() {
   const { data: lines } = useLines()
   const { data: products } = useProducts()
   const { data: furnaces } = useFurnaces()
-  const { data: targets } = useTargets()
+  const { data: targets } = useTargets(new Date().getFullYear())
 
   const [monthYm, setMonthYm] = useState(() => currentMonthYm())
   const [mode, setMode] = useState<ProductionDraft['mode']>('grid')
@@ -510,7 +510,7 @@ export default function ProductionInputPage() {
   const processOptions = useMemo(() => ['기본', '단조', '가열', '검사'].map((value) => ({ label: value, value })), [])
 
   const previousMonth = previousMonthYm(monthYm)
-  const currentMonthTarget = targets?.find((target) => target.metric === 'output' && target.scope === 'company')?.target_value ?? null
+  const currentMonthTarget = targets?.find((target) => target.metric === 'output' && target.scope === 'company' && target.year === new Date().getFullYear())?.target_value ?? null
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-production-prev-month', previousMonth],

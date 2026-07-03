@@ -4,7 +4,10 @@ import type {
   GasCompanyMonthlyImportRow,
   GasDailyImportRow,
   GasMonthlyImportRow,
+  RawMaterialSpecImportRow,
+  TargetImportRow,
   ProductionImportRow,
+  WorkStandardImportRow,
 } from '@/types/import'
 
 export interface ImportSaveSummary {
@@ -144,6 +147,84 @@ export async function saveGasCompanyMonthlyImports(
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.gasCompanyMonthly, payload, DB_CONFLICT_KEYS.gasCompanyMonthly)
+  if (error) {
+    summary.failed = rows.length
+    summary.errors.push({ rowIndex: 0, message: error.message })
+    return summary
+  }
+
+  summary.saved = rows.length
+  return summary
+}
+
+export async function saveTargetImports(
+  supabase: SupabaseClient,
+  rows: TargetImportRow[]
+): Promise<ImportSaveSummary> {
+  const summary = emptySummary(rows.length)
+  const payload = rows.map((row) => ({
+    year: row.year,
+    dept: row.dept,
+    scope: row.scope,
+    ref: row.ref ?? row.dept,
+    metric: row.metric,
+    target_value: row.target_value,
+    note: row.note ?? null,
+  }))
+
+  const { error } = await upsertBatch(supabase, DB.tables.targets, payload, DB_CONFLICT_KEYS.targets)
+  if (error) {
+    summary.failed = rows.length
+    summary.errors.push({ rowIndex: 0, message: error.message })
+    return summary
+  }
+
+  summary.saved = rows.length
+  return summary
+}
+
+export async function saveWorkStandardImports(
+  supabase: SupabaseClient,
+  rows: WorkStandardImportRow[]
+): Promise<ImportSaveSummary> {
+  const summary = emptySummary(rows.length)
+  const payload = rows.map((row) => ({
+    dept: row.dept,
+    product: row.product,
+    material: row.material,
+    basis: row.basis,
+    min_ton: row.min_ton,
+    max_ton: row.max_ton,
+    order_size: row.order_size,
+    std_work_count: row.std_work_count,
+    note: row.note ?? null,
+  }))
+
+  const { error } = await upsertBatch(supabase, DB.tables.workStandards, payload, DB_CONFLICT_KEYS.workStandards)
+  if (error) {
+    summary.failed = rows.length
+    summary.errors.push({ rowIndex: 0, message: error.message })
+    return summary
+  }
+
+  summary.saved = rows.length
+  return summary
+}
+
+export async function saveRawMaterialSpecImports(
+  supabase: SupabaseClient,
+  rows: RawMaterialSpecImportRow[]
+): Promise<ImportSaveSummary> {
+  const summary = emptySummary(rows.length)
+  const payload = rows.map((row) => ({
+    product: row.product,
+    material: row.material,
+    raw_material: row.raw_material,
+    spec: row.spec,
+    note: row.note ?? null,
+  }))
+
+  const { error } = await upsertBatch(supabase, DB.tables.rawMaterialSpecs, payload, DB_CONFLICT_KEYS.rawMaterialSpecs)
   if (error) {
     summary.failed = rows.length
     summary.errors.push({ rowIndex: 0, message: error.message })

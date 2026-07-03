@@ -6,18 +6,30 @@ export type ImportFieldKey =
   | 'work_date'
   | 'ym'
   | 'work_month'
+  | 'year'
+  | 'dept'
   | 'dept_line'
   | 'line_code'
   | 'product'
   | 'product_name'
   | 'material'
+  | 'raw_material'
+  | 'spec'
   | 'process'
   | 'shift'
+  | 'scope'
+  | 'ref'
+  | 'metric'
+  | 'basis'
   | 'value'
+  | 'target_value'
   | 'charge_weight_kg'
   | 'charge_weight'
   | 'gas_usage'
   | 'source'
+  | 'min_ton'
+  | 'max_ton'
+  | 'std_work_count'
   | 'order_size'
   | 'work_size'
   | 'order_weight'
@@ -235,5 +247,35 @@ export interface GasCompanyMonthlyImportRow {
   ym: string
   charge_weight_kg: number
   gas_usage: number
+  note?: string | null
+}
+
+export interface TargetImportRow {
+  year: number
+  dept: string
+  scope: string
+  metric: string
+  target_value: number
+  ref?: string | null
+  note?: string | null
+}
+
+export interface WorkStandardImportRow {
+  dept: string
+  product: string
+  material: string
+  basis: 'charge' | 'product'
+  min_ton: number | null
+  max_ton: number | null
+  order_size: string | null
+  std_work_count: number
+  note?: string | null
+}
+
+export interface RawMaterialSpecImportRow {
+  product: string
+  material: string
+  raw_material: string
+  spec: string
   note?: string | null
 }

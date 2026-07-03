@@ -12,7 +12,10 @@ import {
   saveGasCompanyMonthlyImports,
   saveGasDailyImports,
   saveGasMonthlyImports,
+  saveRawMaterialSpecImports,
+  saveTargetImports,
   saveProductionImports,
+  saveWorkStandardImports,
   type ImportSaveSummary,
 } from '@/lib/import/persistence'
 import { DB } from '@/types/db'
@@ -23,7 +26,10 @@ import type {
   ImportAliasRecord,
   ImportDatasetKey,
   ImportMappingState,
+  RawMaterialSpecImportRow,
+  TargetImportRow,
   ProductionImportRow,
+  WorkStandardImportRow,
 } from '@/types/import'
 
 export const runtime = 'nodejs'
@@ -149,6 +155,18 @@ async function saveRows(
       enteredByName,
       enteredByShift,
     })
+  }
+
+  if (datasetKey === 'targets') {
+    return saveTargetImports(supabase, validRows as TargetImportRow[])
+  }
+
+  if (datasetKey === 'work-standards') {
+    return saveWorkStandardImports(supabase, validRows as WorkStandardImportRow[])
+  }
+
+  if (datasetKey === 'raw-material-specs') {
+    return saveRawMaterialSpecImports(supabase, validRows as RawMaterialSpecImportRow[])
   }
 
   return saveGasCompanyMonthlyImports(supabase, validRows as GasCompanyMonthlyImportRow[], {

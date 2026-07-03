@@ -34,11 +34,14 @@ function formatNumber(value: number) {
 
 export default function ProductivityPage() {
   const [selectedLine, setSelectedLine] = useState<string>('all')
+  const currentYear = new Date().getFullYear()
   const { data: lines } = useLines()
   const { data: records = [] } = useProductionTrend(3)
-  const { data: targets } = useTargets()
+  const { data: targets } = useTargets(currentYear)
 
-  const targetTph = targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company')?.target_value ?? 20
+  const targetTph =
+    targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company' && target.year === currentYear)?.target_value ??
+    20
 
   const lineOptions = useMemo(() => {
     if (lines && lines.length > 0) return lines.map((line) => line.code)

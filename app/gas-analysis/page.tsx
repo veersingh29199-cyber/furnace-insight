@@ -54,11 +54,12 @@ function getEffectiveGasUnit(rec: unknown): number | null {
 }
 
 export default function GasAnalysisPage() {
+  const currentYear = new Date().getFullYear()
   const { data: allGas }    = useGasRecords({})
   const { data: furnaces }  = useFurnaces()
   const { data: products }  = useProducts()
   const { data: benchmarks } = useBenchmarks()
-  const { data: targets }    = useTargets()
+  const { data: targets }    = useTargets(currentYear)
 
   const { data: dailyReadings } = useQuery({
     queryKey: ['gas-daily-all'],
@@ -144,7 +145,7 @@ export default function GasAnalysisPage() {
     })
 
   // ── 목표 원단위 ──
-  const gasTarget = targets?.find(t => t.metric === 'gas_unit' && t.scope === 'company')?.target_value
+  const gasTarget = targets?.find(t => t.metric === 'gas_unit' && t.scope === 'company' && t.year === currentYear)?.target_value
 
   // ── 제품 Mix 시뮬레이터 ──
   const mixTotal = Object.values(mixInputs).reduce((s, v) => s + (v || 0), 0)

@@ -1,12 +1,16 @@
 import { calcAchievementRate, calcGasUnit, calcTonPerHour } from '@/lib/utils'
 import { normalizeToken, parseIntNumber, parseLooseNumber, isTotalLikeHeader } from '@/lib/input/common'
 import { normalizeDateText, normalizeFurnaceCode, normalizeLineCode, normalizeMonthDate, normalizeShiftText, detectYearFromSheetName } from '@/lib/import/common'
+import { normalizeTargetMetricText, normalizeTargetScopeText, normalizeWorkBasisText } from '@/lib/import/common'
 import { buildFieldAliasMap, buildFurnaceLookup, buildLineLookup, buildProductLookup, findFieldByHeader } from '@/lib/import/aliases'
 import {
   importGasCompanyMonthlyRowSchema,
   importGasDailyRowSchema,
   importGasMonthlyRowSchema,
   importProductionRowSchema,
+  importRawMaterialSpecSchema,
+  importTargetSchema,
+  importWorkStandardSchema,
   parseZodIssues,
 } from '@/lib/import/validation'
 import type { Furnace, Line, Product } from '@/types'
@@ -21,7 +25,10 @@ import type {
   ImportPreviewContext,
   ImportPreviewRow,
   ImportSheetAnalysis,
+  RawMaterialSpecImportRow,
+  TargetImportRow,
   ProductionImportRow,
+  WorkStandardImportRow,
 } from '@/types/import'
 import type { ImportDatasetKey, ImportFieldKey } from '@/types/import'
 import { IMPORT_DATASETS } from '@/lib/import/specs'
@@ -1247,6 +1254,179 @@ function parseGasCompanyMonthlyWide(
   return finalizePreview(sheet, rows, context.layout, 'gas-company-monthly')
 }
 
+function parseTargetsLong(
+  sheet: ImportSheetAnalysis,
+  mapping: ImportMappingState,
+  context: ImportPreviewContext
+): ImportPreview<TargetImportRow> {
+  const headerRow = sheet.headerRowIndex != null ? sheet.matrix[sheet.headerRowIndex] ?? [] : []
+  const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
+  const rows: ImportPreviewRow<TargetImportRow>[] = []
+  const fallbackYear = detectYearFromSheetName(sheet.sheetName)
+
+  sheet.matrix.slice((sheet.headerRowIndex ?? -1) + 1).forEach((raw, index) => {
+    const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
+    if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
+
+    const yearText = resolveFieldText(raw, 'year', mapping, autoFieldIndexMap)
+    const deptText = resolveFieldText(raw, 'dept', mapping, autoFieldIndexMap)
+    const scopeText = resolveFieldText(raw, 'scope', mapping, autoFieldIndexMap)
+    const metricText = resolveFieldText(raw, 'metric', mapping, autoFieldIndexMap)
+    const targetText = resolveFieldText(raw, 'target_value', mapping, autoFieldIndexMap)
+    const refText = resolveFieldText(raw, 'ref', mapping, autoFieldIndexMap)
+    const note = resolveFieldText(raw, 'note', mapping, autoFieldIndexMap)
+
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    const year = parseIntNumber(yearText) ?? fallbackYear
+    const dept = deptText.trim()
+    const scope = normalizeTargetScopeText(scopeText)
+    const metric = normalizeTargetMetricText(metricText)
+    const targetValue = parseLooseNumber(targetText)
+    const ref = refText.trim() || dept || null
+
+    if (!year) errors.push('연도를 찾지 못했습니다.')
+    if (!dept) errors.push('부서를 입력해 주세요.')
+    if (!scope || !['company', 'dept', 'line', 'furnace'].includes(scope)) errors.push(`scope "${scopeText}"를 인식하지 못했습니다.`)
+    if (!metric || !['gas_unit', 'ton_per_hour', 'output'].includes(metric)) errors.push(`지표 "${metricText}"를 인식하지 못했습니다.`)
+    if (targetValue == null) errors.push('목표값을 입력해 주세요.')
+
+    const record: TargetImportRow = {
+      year: year ?? 0,
+      dept,
+      scope: (scope && ['company', 'dept', 'line', 'furnace'].includes(scope) ? scope : 'company'),
+      metric: (metric && ['gas_unit', 'ton_per_hour', 'output'].includes(metric) ? metric : 'output'),
+      target_value: targetValue ?? 0,
+      ref,
+      note: note || null,
+    }
+
+    const validation = validateRecord(importTargetSchema, record)
+    const normalizedRecord = validation.record as TargetImportRow
+    errors.push(...validation.errors)
+
+    rows.push(makeRowResult(rowIndex, raw, normalizedRecord, errors, warnings))
+  })
+
+  return finalizePreview(sheet, rows, context.layout, 'targets')
+}
+
+function parseWorkStandardsLong(
+  sheet: ImportSheetAnalysis,
+  mapping: ImportMappingState,
+  context: ImportPreviewContext
+): ImportPreview<WorkStandardImportRow> {
+  const headerRow = sheet.headerRowIndex != null ? sheet.matrix[sheet.headerRowIndex] ?? [] : []
+  const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
+  const rows: ImportPreviewRow<WorkStandardImportRow>[] = []
+
+  sheet.matrix.slice((sheet.headerRowIndex ?? -1) + 1).forEach((raw, index) => {
+    const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
+    if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
+
+    const deptText = resolveFieldText(raw, 'dept', mapping, autoFieldIndexMap)
+    const productText = resolveFieldText(raw, 'product', mapping, autoFieldIndexMap)
+    const materialText = resolveFieldText(raw, 'material', mapping, autoFieldIndexMap)
+    const basisText = resolveFieldText(raw, 'basis', mapping, autoFieldIndexMap)
+    const minTonText = resolveFieldText(raw, 'min_ton', mapping, autoFieldIndexMap)
+    const maxTonText = resolveFieldText(raw, 'max_ton', mapping, autoFieldIndexMap)
+    const orderSize = resolveFieldText(raw, 'order_size', mapping, autoFieldIndexMap)
+    const stdWorkCountText = resolveFieldText(raw, 'std_work_count', mapping, autoFieldIndexMap)
+    const note = resolveFieldText(raw, 'note', mapping, autoFieldIndexMap)
+
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    const dept = deptText.trim()
+    const product = productText.trim()
+    const material = materialText.trim()
+    const basis = normalizeWorkBasisText(basisText)
+    const minTon = parseLooseNumber(minTonText)
+    const maxTon = parseLooseNumber(maxTonText)
+    const stdWorkCount = parseIntNumber(stdWorkCountText)
+
+    if (!dept) errors.push('부서를 입력해 주세요.')
+    if (!product) errors.push('제품을 입력해 주세요.')
+    if (!material) errors.push('재질을 입력해 주세요.')
+    if (!basis || !['charge', 'product'].includes(basis)) errors.push(`기준 "${basisText}"를 인식하지 못했습니다.`)
+    if (stdWorkCount == null) errors.push('표준작업수를 입력해 주세요.')
+
+    const record: WorkStandardImportRow = {
+      dept,
+      product,
+      material,
+      basis: (basis && ['charge', 'product'].includes(basis) ? basis : 'charge'),
+      min_ton: minTon ?? null,
+      max_ton: maxTon ?? null,
+      order_size: orderSize.trim() || null,
+      std_work_count: stdWorkCount ?? 0,
+      note: note || null,
+    }
+
+    const validation = validateRecord(importWorkStandardSchema, record)
+    const normalizedRecord = validation.record as WorkStandardImportRow
+    errors.push(...validation.errors)
+
+    if (
+      normalizedRecord.min_ton != null &&
+      normalizedRecord.max_ton != null &&
+      normalizedRecord.min_ton > normalizedRecord.max_ton
+    ) {
+      warnings.push('최소투입중량이 최대투입중량보다 큽니다.')
+    }
+
+    rows.push(makeRowResult(rowIndex, raw, normalizedRecord, errors, warnings))
+  })
+
+  return finalizePreview(sheet, rows, context.layout, 'work-standards')
+}
+
+function parseRawMaterialSpecsLong(
+  sheet: ImportSheetAnalysis,
+  mapping: ImportMappingState,
+  context: ImportPreviewContext
+): ImportPreview<RawMaterialSpecImportRow> {
+  const headerRow = sheet.headerRowIndex != null ? sheet.matrix[sheet.headerRowIndex] ?? [] : []
+  const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
+  const rows: ImportPreviewRow<RawMaterialSpecImportRow>[] = []
+
+  sheet.matrix.slice((sheet.headerRowIndex ?? -1) + 1).forEach((raw, index) => {
+    const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
+    if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
+
+    const productText = resolveFieldText(raw, 'product', mapping, autoFieldIndexMap)
+    const materialText = resolveFieldText(raw, 'material', mapping, autoFieldIndexMap)
+    const rawMaterialText = resolveFieldText(raw, 'raw_material', mapping, autoFieldIndexMap)
+    const specText = resolveFieldText(raw, 'spec', mapping, autoFieldIndexMap)
+    const note = resolveFieldText(raw, 'note', mapping, autoFieldIndexMap)
+
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    const record: RawMaterialSpecImportRow = {
+      product: productText.trim(),
+      material: materialText.trim(),
+      raw_material: rawMaterialText.trim(),
+      spec: specText.trim(),
+      note: note || null,
+    }
+
+    if (!record.product) errors.push('제품을 입력해 주세요.')
+    if (!record.material) errors.push('재질을 입력해 주세요.')
+    if (!record.raw_material) errors.push('원소재를 입력해 주세요.')
+    if (!record.spec) errors.push('규격을 입력해 주세요.')
+
+    const validation = validateRecord(importRawMaterialSpecSchema, record)
+    const normalizedRecord = validation.record as RawMaterialSpecImportRow
+    errors.push(...validation.errors)
+
+    rows.push(makeRowResult(rowIndex, raw, normalizedRecord, errors, warnings))
+  })
+
+  return finalizePreview(sheet, rows, context.layout, 'raw-material-specs')
+}
+
 export function buildImportPreview(
   sheet: ImportSheetAnalysis,
   mapping: ImportMappingState,
@@ -1277,6 +1457,18 @@ export function buildImportPreview(
     return mapping.layout === 'company-wide'
       ? parseGasCompanyMonthlyWide(sheet, mapping, context)
       : parseGasCompanyMonthlyLong(sheet, mapping, context)
+  }
+
+  if (mapping.datasetKey === 'targets') {
+    return parseTargetsLong(sheet, mapping, context)
+  }
+
+  if (mapping.datasetKey === 'work-standards') {
+    return parseWorkStandardsLong(sheet, mapping, context)
+  }
+
+  if (mapping.datasetKey === 'raw-material-specs') {
+    return parseRawMaterialSpecsLong(sheet, mapping, context)
   }
 
   return parseGasMonthlyLong(sheet, mapping, context)

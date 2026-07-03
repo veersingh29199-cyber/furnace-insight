@@ -62,8 +62,10 @@ export const productSchema = z.object({
 export type ProductInput = z.infer<typeof productSchema>
 
 export const targetSchema = z.object({
-  scope: z.enum(['line', 'furnace', 'company']),
-  ref: requiredText,
+  year: z.coerce.number().int('연도는 정수여야 합니다.').min(2000).max(2100),
+  dept: requiredText,
+  scope: z.enum(['line', 'furnace', 'dept', 'company']),
+  ref: z.string().trim().min(1).optional().nullable(),
   metric: z.enum(['gas_unit', 'ton_per_hour', 'output']),
   target_value: positiveNum,
   note: z.string().trim().nullable().optional(),
@@ -92,8 +94,71 @@ export type LineInput = z.infer<typeof lineSchema>
 export const furnaceSchema = z.object({
   code: requiredText,
   name: requiredText,
+  dept: z.string().trim().nullable().optional(),
   group_line_id: z.string().nullable().optional(),
   active: z.boolean().default(true),
 })
 
 export type FurnaceInput = z.infer<typeof furnaceSchema>
+
+export const workStandardSchema = z.object({
+  dept: requiredText,
+  product: requiredText,
+  material: requiredText,
+  basis: z.enum(['charge', 'product']),
+  min_ton: z.coerce.number().min(0).nullable().optional(),
+  max_ton: z.coerce.number().min(0).nullable().optional(),
+  order_size: z.string().trim().nullable().optional(),
+  std_work_count: z.coerce.number().int('표준작업수는 정수여야 합니다.').min(0),
+  note: z.string().trim().nullable().optional(),
+})
+
+export type WorkStandardInput = z.infer<typeof workStandardSchema>
+
+export const rawMaterialSpecSchema = z.object({
+  product: requiredText,
+  material: requiredText,
+  raw_material: requiredText,
+  spec: requiredText,
+  note: z.string().trim().nullable().optional(),
+})
+
+export type RawMaterialSpecInput = z.infer<typeof rawMaterialSpecSchema>
+
+export const appSettingSchema = z.object({
+  key: requiredText,
+  value: z.union([z.string(), z.number(), z.boolean(), z.record(z.string(), z.unknown()), z.null()]),
+  note: z.string().trim().nullable().optional(),
+})
+
+export type AppSettingInput = z.infer<typeof appSettingSchema>
+
+export const importTargetSchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  dept: requiredText,
+  scope: z.enum(['line', 'furnace', 'dept', 'company']),
+  ref: z.string().trim().min(1).nullable().optional(),
+  metric: z.enum(['gas_unit', 'ton_per_hour', 'output']),
+  target_value: positiveNum,
+  note: z.string().trim().nullable().optional(),
+})
+
+export const importWorkStandardSchema = z.object({
+  dept: requiredText,
+  product: requiredText,
+  material: requiredText,
+  basis: z.enum(['charge', 'product']),
+  min_ton: z.coerce.number().min(0).nullable().optional(),
+  max_ton: z.coerce.number().min(0).nullable().optional(),
+  order_size: z.string().trim().nullable().optional(),
+  std_work_count: z.coerce.number().int().min(0),
+  note: z.string().trim().nullable().optional(),
+})
+
+export const importRawMaterialSpecSchema = z.object({
+  product: requiredText,
+  material: requiredText,
+  raw_material: requiredText,
+  spec: requiredText,
+  note: z.string().trim().nullable().optional(),
+})

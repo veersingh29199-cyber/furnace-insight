@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { readImportSheets } from '@/lib/import/common'
@@ -13,7 +13,10 @@ import {
   saveGasCompanyMonthlyImports,
   saveGasDailyImports,
   saveGasMonthlyImports,
+  saveRawMaterialSpecImports,
+  saveTargetImports,
   saveProductionImports,
+  saveWorkStandardImports,
   type ImportSaveSummary,
 } from '@/lib/import/persistence'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
@@ -30,7 +33,10 @@ import type {
   ImportSheetAnalysis,
   ImportTemplateRecord,
   ImportUploadRecord,
+  RawMaterialSpecImportRow,
+  TargetImportRow,
   ProductionImportRow,
+  WorkStandardImportRow,
 } from '@/types/import'
 import { calcAchievementRate, calcGasUnit, calcTonPerHour, formatGasUnit, formatPercent, formatTonPerHour } from '@/lib/utils'
 import { AlertTriangle, BadgeCheck, CheckCircle2, Database, FileSpreadsheet, Loader2, Save, Settings2, Sparkles, Upload, Wand2 } from 'lucide-react'
@@ -56,8 +62,19 @@ type ImportPreviewRowAny =
   | ImportPreviewRow<GasMonthlyImportRow>
   | ImportPreviewRow<ProductionImportRow>
   | ImportPreviewRow<GasCompanyMonthlyImportRow>
+  | ImportPreviewRow<TargetImportRow>
+  | ImportPreviewRow<WorkStandardImportRow>
+  | ImportPreviewRow<RawMaterialSpecImportRow>
 
-const DATASET_TABS: ImportDatasetKey[] = ['gas-daily', 'gas-monthly', 'production', 'gas-company-monthly']
+const DATASET_TABS: ImportDatasetKey[] = [
+  'production',
+  'gas-daily',
+  'gas-monthly',
+  'work-standards',
+  'targets',
+  'raw-material-specs',
+  'gas-company-monthly',
+]
 
 function mergeMapping(base: ImportMappingState, patch: Partial<ImportMappingState>): ImportMappingState {
   return {
@@ -80,12 +97,18 @@ function mergeMapping(base: ImportMappingState, patch: Partial<ImportMappingStat
 
 function datasetTone(datasetKey: ImportDatasetKey) {
   switch (datasetKey) {
+    case 'production':
+      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
     case 'gas-daily':
       return 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
     case 'gas-monthly':
       return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-    case 'production':
-      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    case 'work-standards':
+      return 'border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
+    case 'targets':
+      return 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+    case 'raw-material-specs':
+      return 'border-lime-500/20 bg-lime-500/10 text-lime-700 dark:text-lime-300'
     case 'gas-company-monthly':
       return 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300'
     default:
@@ -193,7 +216,7 @@ function renderPreviewValue(row: ImportPreviewRowAny, key: string) {
   return String(raw)
 }
 
-export function ImportPanel() {
+export function ImportPanel({ preferredDatasetKey }: { preferredDatasetKey?: ImportDatasetKey }) {
   const supabase = useMemo(() => createClient(), [])
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -265,7 +288,7 @@ export function ImportPanel() {
   const [fileName, setFileName] = useState('')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [selectedSheetName, setSelectedSheetName] = useState('')
-  const [activeDatasetKey, setActiveDatasetKey] = useState<ImportDatasetKey>('gas-daily')
+  const [activeDatasetKey, setActiveDatasetKey] = useState<ImportDatasetKey>(preferredDatasetKey ?? 'gas-daily')
   const [mappingBySheet, setMappingBySheet] = useState<Record<string, ImportMappingState>>({})
   const [templateName, setTemplateName] = useState('')
   const [pasteSheetName, setPasteSheetName] = useState('')
@@ -274,6 +297,12 @@ export function ImportPanel() {
   const [saving, setSaving] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (preferredDatasetKey) {
+      setActiveDatasetKey(preferredDatasetKey)
+    }
+  }, [preferredDatasetKey])
 
   const analyses = useMemo(() => {
     if (!rawSheets) return []
@@ -489,6 +518,12 @@ export function ImportPanel() {
           enteredByName,
           enteredByShift,
         })
+      } else if (mapping.datasetKey === 'targets') {
+        summary = await saveTargetImports(supabase, currentPreview.validRows as TargetImportRow[])
+      } else if (mapping.datasetKey === 'work-standards') {
+        summary = await saveWorkStandardImports(supabase, currentPreview.validRows as WorkStandardImportRow[])
+      } else if (mapping.datasetKey === 'raw-material-specs') {
+        summary = await saveRawMaterialSpecImports(supabase, currentPreview.validRows as RawMaterialSpecImportRow[])
       } else {
         summary = await saveGasCompanyMonthlyImports(supabase, currentPreview.validRows as GasCompanyMonthlyImportRow[], {
           userId: user?.id ?? null,
@@ -499,6 +534,9 @@ export function ImportPanel() {
       await queryClient.invalidateQueries({ queryKey: ['gas-records'] })
       await queryClient.invalidateQueries({ queryKey: ['production-records'] })
       await queryClient.invalidateQueries({ queryKey: ['gas-daily-all'] })
+      await queryClient.invalidateQueries({ queryKey: ['targets'] })
+      await queryClient.invalidateQueries({ queryKey: ['work-standards'] })
+      await queryClient.invalidateQueries({ queryKey: ['raw-material-specs'] })
       toast.success(`저장 완료: ${summary.saved}건 / 실패 ${summary.failed}건`)
       if (summary.errors.length > 0) {
         summary.errors.slice(0, 3).forEach((error) => toast.error(error.message))
@@ -565,6 +603,9 @@ export function ImportPanel() {
       await queryClient.invalidateQueries({ queryKey: ['gas-records'] })
       await queryClient.invalidateQueries({ queryKey: ['production-records'] })
       await queryClient.invalidateQueries({ queryKey: ['gas-daily-all'] })
+      await queryClient.invalidateQueries({ queryKey: ['targets'] })
+      await queryClient.invalidateQueries({ queryKey: ['work-standards'] })
+      await queryClient.invalidateQueries({ queryKey: ['raw-material-specs'] })
       if (Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
         await queryClient.invalidateQueries({ queryKey: ['import-uploads'] })
       }
@@ -1029,7 +1070,7 @@ export function ImportPanel() {
                           <TableBody>
                             {previewRows.map((row, index) => (
                               <TableRow
-                                key={`${currentPreview.sheetName}-${row.rowIndex}-${index}`}
+                                key={`${currentPreview.sheetName}-${row.rowIndex}-${index}-${row.raw.join('|')}`}
                                 className={row.errors.length > 0 ? 'bg-destructive/5' : row.warnings.length > 0 ? 'bg-amber-500/5' : ''}
                               >
                                 <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>

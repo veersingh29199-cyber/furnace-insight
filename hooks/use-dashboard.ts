@@ -23,6 +23,27 @@ function sumNumber<T extends Record<string, unknown>>(rows: T[] | undefined, key
   return rows?.reduce((sum, row) => sum + Number(row[key] ?? 0), 0) ?? 0
 }
 
+function findTarget(
+  rows: Target[] | undefined,
+  metric: Target['metric'],
+  filters: { year?: number | null; dept?: string | null; scope?: string | null } = {}
+) {
+  const exact = rows?.find((row) => {
+    if (row.metric !== metric) return false
+    if (filters.year != null && row.year != null && row.year !== filters.year) return false
+    if (filters.dept != null && row.dept != null && row.dept !== filters.dept) return false
+    if (filters.scope != null && row.scope !== filters.scope) return false
+    return true
+  })
+
+  if (exact) return exact
+
+  return (
+    rows?.find((row) => row.metric === metric && (filters.scope == null || row.scope === filters.scope)) ??
+    null
+  )
+}
+
 export function useDashboardKpi() {
   return useQuery({
     queryKey: ['dashboard-kpi'],
@@ -105,8 +126,9 @@ export function useDashboardKpi() {
 
       const { data: targets } = await supabase
         .from(DB.tables.targets)
-        .select(`${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.note}`)
-        .eq(DB.targets.scope, 'company')
+        .select(`${DB.targets.year}, ${DB.targets.dept}, ${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.note}`)
+        .order(DB.targets.year, { ascending: false, nullsFirst: false })
+        .order(DB.targets.dept, { ascending: true })
         .order(DB.targets.metric, { ascending: true })
 
       const { data: benchmarks } = await supabase
@@ -136,7 +158,9 @@ export function useDashboardKpi() {
 
       const totalActualThis = prodThis?.reduce((sum, row) => sum + Number(row.order_weight ?? row.actual_ton ?? 0), 0) ?? 0
       const totalHoursThis = prodThis?.reduce((sum, row) => sum + Number(row.work_hours ?? 0), 0) ?? 0
-      const totalPlanThis = targets?.find((row) => row.metric === 'output')?.target_value ?? sumNumber(prodThis ?? [], 'plan_ton')
+      const totalPlanThis =
+        findTarget(targets as Target[] | undefined, 'output', { year: activeYear, dept: 'company', scope: 'company' })?.target_value ??
+        sumNumber(prodThis ?? [], 'plan_ton')
 
       const achievementRate = totalPlanThis > 0 ? calcAchievementRate(totalActualThis, totalPlanThis) : null
       const tonPerHourThis = calcTonPerHour(totalActualThis, totalHoursThis)
@@ -157,8 +181,12 @@ export function useDashboardKpi() {
         ? ((tonPerHourThis - tonPerHourLastYear) / tonPerHourLastYear) * 100
         : null
 
-      const gasTarget = targets?.find((row) => row.metric === 'gas_unit')?.target_value ?? null
-      const tphTarget = targets?.find((row) => row.metric === 'ton_per_hour')?.target_value ?? null
+      const gasTarget =
+        findTarget(targets as Target[] | undefined, 'gas_unit', { year: activeYear, dept: 'company', scope: 'company' })?.target_value ??
+        null
+      const tphTarget =
+        findTarget(targets as Target[] | undefined, 'ton_per_hour', { year: activeYear, dept: 'company', scope: 'company' })?.target_value ??
+        null
 
       return {
         thisMonth: activeMonth,
@@ -225,16 +253,22 @@ export function useProducts() {
   })
 }
 
-export function useTargets(year?: number) {
+export function useTargets(year?: number, dept?: string) {
   return useQuery({
-    queryKey: ['targets', year],
+    queryKey: ['targets', year ?? null, dept ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from(DB.tables.targets)
-        .select('id, scope, ref, metric, target_value, note')
+        .select('id, year, dept, scope, ref, metric, target_value, note')
         .order(DB.targets.scope, { ascending: true })
+        .order(DB.targets.year, { ascending: false, nullsFirst: false })
         .order(DB.targets.ref, { ascending: true })
         .order(DB.targets.metric, { ascending: true })
+
+      if (year != null) query = query.eq(DB.targets.year, year)
+      if (dept) query = query.eq(DB.targets.dept, dept)
+
+      const { data, error } = await query
       if (error) throw error
       return (data ?? []) as Target[]
     },

@@ -21,6 +21,7 @@ const supabase = createClient()
 const SCOPE_LABELS: Record<TargetScope, string> = {
   line: '라인',
   furnace: '가열로',
+  dept: '부서',
   company: '전사',
 }
 
@@ -38,9 +39,12 @@ export default function TargetsPanel() {
   const qc = useQueryClient()
   const { data: lines } = useLines()
   const { data: furnaces } = useFurnaces()
+  const currentYear = new Date().getFullYear()
 
   const [scope, setScope] = useState<TargetScope>('company')
   const [ref, setRef] = useState('company')
+  const [year, setYear] = useState(String(currentYear))
+  const [dept, setDept] = useState('P5')
   const [metric, setMetric] = useState<TargetMetric>('gas_unit')
   const [value, setValue] = useState('')
   const [note, setNote] = useState('')
@@ -50,7 +54,9 @@ export default function TargetsPanel() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.targets)
-        .select('id, scope, ref, metric, target_value, note')
+        .select('id, year, dept, scope, ref, metric, target_value, note')
+        .order(DB.targets.year, { ascending: false, nullsFirst: false })
+        .order(DB.targets.dept, { ascending: true })
         .order(DB.targets.scope, { ascending: true })
         .order(DB.targets.ref, { ascending: true })
         .order(DB.targets.metric, { ascending: true })
@@ -69,13 +75,26 @@ export default function TargetsPanel() {
     () => (furnaces ?? []).map((furnace) => ({ value: furnace.code, label: `${furnace.code} · ${furnace.name}` })),
     [furnaces]
   )
+  const deptOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (furnaces ?? [])
+            .map((furnace) => furnace.dept)
+            .filter((value): value is string => Boolean(value))
+        )
+      ).map((value) => ({ value, label: value })),
+    [furnaces]
+  )
 
   const refOptions = scope === 'line' ? lineOptions : scope === 'furnace' ? furnaceOptions : []
 
   const addTarget = useMutation({
     mutationFn: async () => {
-      const normalizedRef = scope === 'company' ? 'company' : ref.trim()
+      const normalizedRef = scope === 'company' ? 'company' : scope === 'dept' ? dept.trim() || 'company' : ref.trim()
       const payload = {
+        year: Number(year),
+        dept: dept.trim() || normalizedRef,
         scope,
         ref: normalizedRef,
         metric,
@@ -100,7 +119,12 @@ export default function TargetsPanel() {
     onError: (error: Error) => toast.error(error.message),
   })
 
-  const canSave = value.trim().length > 0 && Number(value) > 0 && (scope === 'company' || ref.trim().length > 0)
+  const canSave =
+    year.trim().length > 0 &&
+    dept.trim().length > 0 &&
+    value.trim().length > 0 &&
+    Number(value) > 0 &&
+    (scope === 'company' || scope === 'dept' || ref.trim().length > 0)
 
   return (
     <div className="space-y-4">
@@ -115,7 +139,46 @@ export default function TargetsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-8">
+            <div className="space-y-1.5">
+              <Label className="text-xs">연도</Label>
+              <Input
+                type="number"
+                value={year}
+                onChange={(event) => setYear(event.target.value)}
+                placeholder="2026"
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">부서</Label>
+              <Select
+                value={dept}
+                onValueChange={(next) => {
+                  const nextDept = next ?? ''
+                  setDept(nextDept)
+                  if (scope === 'dept') setRef(nextDept)
+                }}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="부서 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(deptOptions.length > 0 ? deptOptions : [
+                    { value: 'P5', label: 'P5' },
+                    { value: 'P8', label: 'P8' },
+                    { value: 'P15', label: 'P15' },
+                    { value: 'R/M', label: 'R/M' },
+                  ]).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs">범위</Label>
               <Select
@@ -123,7 +186,7 @@ export default function TargetsPanel() {
                 onValueChange={(next) => {
                   const nextScope = next as TargetScope
                   setScope(nextScope)
-                  setRef(nextScope === 'company' ? 'company' : '')
+                  setRef(nextScope === 'company' ? 'company' : nextScope === 'dept' ? dept : '')
                 }}
               >
                 <SelectTrigger className="h-9">
@@ -131,13 +194,14 @@ export default function TargetsPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="company">전사</SelectItem>
+                  <SelectItem value="dept">부서</SelectItem>
                   <SelectItem value="line">라인</SelectItem>
                   <SelectItem value="furnace">가열로</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {scope !== 'company' && (
+            {scope === 'line' || scope === 'furnace' ? (
               <div className="space-y-1.5">
                 <Label className="text-xs">{SCOPE_LABELS[scope]} 선택</Label>
                 <Select value={ref} onValueChange={(next) => setRef(next ?? '')}>
@@ -152,6 +216,15 @@ export default function TargetsPanel() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs">기준값</Label>
+                <Input
+                  value={scope === 'company' ? 'company' : dept}
+                  readOnly
+                  className="h-9 bg-muted/40"
+                />
               </div>
             )}
 
@@ -181,7 +254,7 @@ export default function TargetsPanel() {
               />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2 xl:col-span-1">
+            <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
               <Label className="text-xs">비고</Label>
               <Input
                 value={note}
@@ -207,6 +280,11 @@ export default function TargetsPanel() {
               전사 목표는 `ref = company`로 저장됩니다.
             </p>
           )}
+          {scope === 'dept' && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              부서 목표는 `dept`와 `ref`를 같은 값으로 저장합니다.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -220,6 +298,8 @@ export default function TargetsPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>연도</TableHead>
+                  <TableHead>부서</TableHead>
                   <TableHead>범위</TableHead>
                   <TableHead>대상</TableHead>
                   <TableHead>지표</TableHead>
@@ -230,6 +310,8 @@ export default function TargetsPanel() {
               <TableBody>
                 {targets?.map((target) => (
                   <TableRow key={target.id}>
+                    <TableCell>{target.year ?? '-'}</TableCell>
+                    <TableCell>{target.dept ?? '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
                         {SCOPE_LABELS[target.scope]}
@@ -245,7 +327,7 @@ export default function TargetsPanel() {
                 ))}
                 {!targets?.length && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                       아직 등록된 목표가 없습니다.
                     </TableCell>
                   </TableRow>
