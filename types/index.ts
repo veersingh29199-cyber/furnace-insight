@@ -237,6 +237,28 @@ export interface AppSetting {
   note: string | null
 }
 
+export type LineOutputPeriodType = 'daily' | 'monthly'
+
+export interface LineOutputRow {
+  period: string
+  ptype: LineOutputPeriodType
+  line_code: string
+  output_kg: number | null
+  plan_kg: number | null
+  achievement: number | null
+  hwangji_kg: number | null
+  cogging_kg: number | null
+  subtotal_kg: number | null
+  remake_self_remake: number | null
+  remake_self_fix: number | null
+  remake_qc_remake: number | null
+  remake_qc_fix: number | null
+  mat_cs_kg: number | null
+  mat_as_kg: number | null
+  mat_sus_kg: number | null
+  mat_total_kg: number | null
+}
+
 export interface AuditLog {
   id: string
   table_name: string
