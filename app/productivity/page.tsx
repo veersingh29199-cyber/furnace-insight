@@ -8,10 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ProductionTrendChart } from '@/components/charts/trend-charts'
-import { useLines } from '@/hooks/use-dashboard'
+import { useLines, useTargets } from '@/hooks/use-dashboard'
 import { useProductionTrend } from '@/hooks/use-production-records'
 import {
-  getProductionAchievementRate,
   getProductionDeptLine,
   getProductionOrderWeight,
   getProductionProduct,
@@ -21,7 +20,7 @@ import {
   getProductionWorkCount,
   sumProduction,
 } from '@/lib/production/records'
-import { calcTonPerHour, formatPercent, formatTonPerHour } from '@/lib/utils'
+import { calcAchievementRate, calcTonPerHour, formatPercent, formatTonPerHour } from '@/lib/utils'
 
 const FALLBACK_LINE_CODES = ['P5', 'P8', 'P15', 'R/M']
 
@@ -37,6 +36,9 @@ export default function ProductivityPage() {
   const [selectedLine, setSelectedLine] = useState<string>('all')
   const { data: lines } = useLines()
   const { data: records = [] } = useProductionTrend(3)
+  const { data: targets } = useTargets(new Date().getFullYear())
+
+  const targetTph = targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company')?.target_value ?? 20
 
   const lineOptions = useMemo(() => {
     if (lines && lines.length > 0) return lines.map((line) => line.code)
@@ -49,13 +51,9 @@ export default function ProductivityPage() {
   }, [records, selectedLine])
 
   const totals = useMemo(() => sumProduction(filteredRecords), [filteredRecords])
-  const totalPlanWeight = useMemo(
-    () => filteredRecords.reduce((sum, record) => sum + Number(record.plan_ton ?? 0), 0),
-    [filteredRecords]
-  )
   const achievementRate = useMemo(
-    () => getProductionAchievementRate(totals.orderWeight, totalPlanWeight),
-    [totalPlanWeight, totals.orderWeight]
+    () => calcAchievementRate(totals.orderWeight, totals.workHours * targetTph),
+    [targetTph, totals.orderWeight, totals.workHours]
   )
   const averageTph = useMemo(
     () => calcTonPerHour(totals.orderWeight, totals.workHours) ?? 0,
@@ -74,7 +72,7 @@ export default function ProductivityPage() {
       if (!month) return
 
       const current = grouped.get(month) ?? { plan: 0, actual: 0 }
-      current.plan += Number(record.plan_ton ?? 0)
+      current.plan += getProductionWorkHours(record) * targetTph
       current.actual += getProductionOrderWeight(record)
       grouped.set(month, current)
     })
@@ -82,7 +80,7 @@ export default function ProductivityPage() {
     return Array.from(grouped.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, value]) => ({ month, plan: value.plan, actual: value.actual }))
-  }, [filteredRecords])
+  }, [filteredRecords, targetTph])
 
   const topProducts = useMemo(() => {
     const grouped = new Map<string, { total: number; hours: number; count: number }>()
