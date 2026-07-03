@@ -1018,9 +1018,9 @@ export function ImportPanel() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {previewRows.map((row) => (
+                            {previewRows.map((row, index) => (
                               <TableRow
-                                key={row.rowIndex}
+                                key={`${currentPreview.sheetName}-${row.rowIndex}-${index}`}
                                 className={row.errors.length > 0 ? 'bg-destructive/5' : row.warnings.length > 0 ? 'bg-amber-500/5' : ''}
                               >
                                 <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>
@@ -1036,8 +1036,8 @@ export function ImportPanel() {
                                   <div className="space-y-1">
                                     {row.errors.length > 0 && (
                                       <div className="flex flex-wrap gap-1">
-                                        {row.errors.map((error: string) => (
-                                          <Badge key={error} variant="destructive" className="text-[10px]">
+                                        {row.errors.map((error: string, errorIndex: number) => (
+                                          <Badge key={`${row.rowIndex}-error-${errorIndex}`} variant="destructive" className="text-[10px]">
                                             {error}
                                           </Badge>
                                         ))}
@@ -1045,8 +1045,8 @@ export function ImportPanel() {
                                     )}
                                     {row.warnings.length > 0 && (
                                       <div className="flex flex-wrap gap-1">
-                                        {row.warnings.map((warning: string) => (
-                                          <Badge key={warning} variant="secondary" className="text-[10px]">
+                                        {row.warnings.map((warning: string, warningIndex: number) => (
+                                          <Badge key={`${row.rowIndex}-warning-${warningIndex}`} variant="secondary" className="text-[10px]">
                                             {warning}
                                           </Badge>
                                         ))}
