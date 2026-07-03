@@ -269,7 +269,7 @@ function parseGasDailyLong(
 
     const record: GasDailyImportRow = {
       date: normalizedDate ?? (baseYm ? `${baseYm}-01` : ''),
-      furnace_code: furnace?.code ?? normalizeFurnaceCode(furnaceText) ?? furnaceText.trim(),
+      furnace_code: '',
       shift,
       value: value ?? 0,
       order_no: orderNo || null,
@@ -537,18 +537,33 @@ function parseProductionLong(
     if (productText && !product) errors.push(`제품 "${productText}"을 찾지 못했습니다.`)
 
     const record: ProductionImportRow = {
+      work_date: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      dept_line: line?.code ?? normalizeLineCode(lineText) ?? lineText,
+      shift,
+      order_no: orderNo || null,
+      product: (product?.name ?? productText) || null,
+      material: null,
+      process: resolveFieldText(raw, 'process', mapping, autoFieldIndexMap) || '기본',
+      order_size: null,
+      work_size: null,
+      order_weight: actualTon ?? planTon ?? 0,
+      charge_weight: hwangjiTon + coggingTon,
+      furnace_code: '',
+      work_hours: workHours ?? 0,
+      work_count: workCount ?? 0,
+      ton_per_hour: null,
+      ton_per_run: null,
+      entered_by_name: null,
+      note: note || null,
       work_month: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
       line_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       product_name: (product?.name ?? productText) || null,
-      shift,
       plan_ton: planTon ?? 0,
       actual_ton: actualTon ?? 0,
       hwangji_ton: hwangjiTon,
       cogging_ton: coggingTon,
-      work_hours: workHours ?? 0,
-      work_count: workCount ?? 0,
-      order_no: orderNo || null,
-      note: note || null,
+      rework_self_ton: 0,
+      rework_quality_ton: 0,
     }
 
     const validation = validateRecord(importProductionRowSchema, record)
@@ -579,6 +594,7 @@ function parseProductionDetail(
   context: ImportPreviewContext
 ): ImportPreview<ProductionImportRow> {
   const headerRow = sheet.headerRowIndex != null ? sheet.matrix[sheet.headerRowIndex] ?? [] : []
+  const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
   const lineLookup = buildLineLookup(context.master.lines as Line[], context.master.aliases)
   const productLookup = buildProductLookup(context.master.products as Product[], context.master.aliases)
   const baseYm = getMonthYearFallback(sheet, mapping)
@@ -630,18 +646,33 @@ function parseProductionDetail(
     const productName = (product?.name ?? normalizedProductText) || null
     const normalizedOrderNo = isZeroLikeText(orderNoText) ? '' : orderNoText
     const record: ProductionImportRow = {
+      work_date: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      dept_line: line?.code ?? normalizeLineCode(lineText) ?? lineText,
+      shift,
+      order_no: normalizedOrderNo || null,
+      product: productName,
+      material: null,
+      process: resolveFieldText(raw, 'process', mapping, autoFieldIndexMap) || '기본',
+      order_size: null,
+      work_size: null,
+      order_weight: actualTon ?? 0,
+      charge_weight: 0,
+      furnace_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
+      work_hours: 0,
+      work_count: workCount ?? 0,
+      ton_per_hour: null,
+      ton_per_run: null,
+      entered_by_name: null,
+      note,
       work_month: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
       line_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       product_name: productName,
-      shift,
       plan_ton: 0,
       actual_ton: actualTon ?? 0,
       hwangji_ton: 0,
       cogging_ton: 0,
-      work_hours: 0,
-      work_count: workCount ?? 0,
-      order_no: normalizedOrderNo || null,
-      note,
+      rework_self_ton: 0,
+      rework_quality_ton: 0,
     }
 
     const validation = validateRecord(importProductionRowSchema, record)
@@ -797,18 +828,33 @@ function parseProductionSummary(
       if (actualKg == null && planKg == null) errors.push('생산량과 계획량을 찾지 못했습니다.')
 
       const record: ProductionImportRow = {
+        work_date: workMonth,
+        dept_line: block.lineCode ?? 'UNKNOWN',
+        shift: null,
+        order_no: null,
+        product: null,
+        material: null,
+        process: '기본',
+        order_size: null,
+        work_size: null,
+        order_weight: kgToTon(actualKg ?? 0),
+        charge_weight: kgToTon((hwangjiKg ?? 0) + (coggingKg ?? 0)),
+        furnace_code: block.lineCode ?? 'UNKNOWN',
+        work_hours: 0,
+        work_count: workCount ?? 0,
+        ton_per_hour: null,
+        ton_per_run: null,
+        entered_by_name: null,
+        note: block.title || block.productLabel || null,
         work_month: workMonth,
         line_code: block.lineCode ?? 'UNKNOWN',
         product_name: null,
-        shift: null,
         plan_ton: kgToTon(planKg ?? 0),
         actual_ton: kgToTon(actualKg ?? 0),
         hwangji_ton: kgToTon(hwangjiKg ?? 0),
         cogging_ton: kgToTon(coggingKg ?? 0),
-        work_hours: 0,
-        work_count: workCount ?? 0,
-        order_no: null,
-        note: block.title || block.productLabel || null,
+        rework_self_ton: 0,
+        rework_quality_ton: 0,
       }
 
       const validation = validateRecord(importProductionRowSchema, record)
@@ -906,18 +952,33 @@ function parseProductionWide(
       if (productText && !product) errors.push(`제품 "${productText}"을 찾지 못했습니다.`)
 
       const record: ProductionImportRow = existing?.record ?? {
+        work_date: ym ? `${ym}-01` : '',
+        dept_line: line?.code ?? normalizeLineCode(lineText) ?? lineText,
+        shift,
+        order_no: resolveFieldText(raw, 'order_no', mapping, autoFieldIndexMap) || null,
+        product: (product?.name ?? productText) || null,
+        material: null,
+        process: resolveFieldText(raw, 'process', mapping, autoFieldIndexMap) || '기본',
+        order_size: null,
+        work_size: null,
+        order_weight: 0,
+        charge_weight: 0,
+        furnace_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
+        work_hours: 0,
+        work_count: 0,
+        ton_per_hour: null,
+        ton_per_run: null,
+        entered_by_name: null,
+        note: resolveFieldText(raw, 'note', mapping, autoFieldIndexMap) || null,
         work_month: ym,
         line_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
         product_name: (product?.name ?? productText) || null,
-        shift,
         plan_ton: 0,
         actual_ton: 0,
         hwangji_ton: 0,
         cogging_ton: 0,
-        work_hours: 0,
-        work_count: 0,
-        order_no: resolveFieldText(raw, 'order_no', mapping, autoFieldIndexMap) || null,
-        note: resolveFieldText(raw, 'note', mapping, autoFieldIndexMap) || null,
+        rework_self_ton: 0,
+        rework_quality_ton: 0,
       }
 
       if (measureIsPlan || (!measureIsPlan && !measureIsActual && rowLabelToken.includes('목표'))) {

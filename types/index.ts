@@ -1,4 +1,3 @@
-// 데이터베이스 테이블 타입 정의
 export type Role = 'admin' | 'editor' | 'viewer'
 export type Shift = 'day' | 'night' | 'both'
 export type GasSource = 'meter' | 'bill' | 'self'
@@ -7,7 +6,15 @@ export type TargetScope = 'line' | 'furnace' | 'company'
 export type TargetMetric = 'gas_unit' | 'ton_per_hour' | 'output'
 export type BenchmarkOrg = '두산' | '태상' | '태웅'
 export type ImportDatasetKey = 'gas-daily' | 'gas-monthly' | 'production' | 'gas-company-monthly'
-export type ImportLayout = 'auto' | 'long' | 'gas-daily-wide' | 'gas-monthly-wide' | 'production-wide' | 'production-detail' | 'company-wide'
+export type ImportLayout =
+  | 'auto'
+  | 'long'
+  | 'gas-daily-wide'
+  | 'gas-monthly-wide'
+  | 'production-wide'
+  | 'production-detail'
+  | 'production-daily'
+  | 'company-wide'
 
 export interface Profile {
   id: string
@@ -18,7 +25,7 @@ export interface Profile {
 
 export interface Line {
   id: string
-  code: string // P5 | P8 | P15 | R/M | ...
+  code: string
   name: string
   capacity_class: CapacityClass
   active: boolean
@@ -26,7 +33,7 @@ export interface Line {
 
 export interface Furnace {
   id: string
-  code: string // 1호기 ~ 20호기
+  code: string
   name: string
   group_line_id: string | null
   active: boolean
@@ -35,7 +42,7 @@ export interface Furnace {
 export interface Product {
   id: string
   name: string
-  material: string // 금형강|크랭크축|쉘|로터|C/S|A/S|SUS
+  material: string
   std_ton_per_hour: number | null
   std_gas_unit: number | null
   active: boolean
@@ -43,42 +50,55 @@ export interface Product {
 
 export interface ProductionRecord {
   id: string
-  work_month: string // date (YYYY-MM-01)
-  line_code: string
-  product_name: string | null
+  work_date: string | null
+  dept_line: string | null
   shift: Shift | null
-  order_no?: string | null
-  plan_ton: number
-  actual_ton: number
-  hwangji_ton: number
-  cogging_ton: number
-  rework_self_ton: number
-  rework_quality_ton: number
-  work_hours: number
-  work_count: number
-  note: string | null
-  created_by: string
+  order_no: string | null
+  product: string | null
+  material: string | null
+  process: string | null
+  order_size: string | null
+  work_size: string | null
+  order_weight: number | null
+  charge_weight: number | null
+  furnace_code: string | null
+  work_hours: number | null
+  work_count: number | null
+  ton_per_hour: number | null
+  ton_per_run: number | null
+  entered_by_name: string | null
   created_at: string
-  updated_by: string | null
   updated_at: string | null
-  // joined
+  created_by?: string | null
+  updated_by?: string | null
+  entered_by_shift?: string | null
+  // Legacy fields retained for compatibility with older records and screens.
+  work_month?: string | null
+  line_code?: string | null
+  product_name?: string | null
+  plan_ton?: number | null
+  actual_ton?: number | null
+  hwangji_ton?: number | null
+  cogging_ton?: number | null
+  rework_self_ton?: number | null
+  rework_quality_ton?: number | null
+  note?: string | null
   line?: Line
-  product?: Product
+  productRef?: Product
 }
 
 export interface GasRecord {
   id: string
-  ym: string // date (YYYY-MM-01)
+  ym: string
   furnace_code: string
   order_no?: string | null
   charge_weight_kg: number
   gas_usage: number
-  gas_unit: number | null // GENERATED
+  gas_unit: number | null
   source: GasSource
   note: string | null
   created_by: string
   created_at: string
-  // joined
   furnace?: Furnace
 }
 
@@ -90,7 +110,6 @@ export interface GasDailyReading {
   order_no?: string | null
   value: number
   created_by: string
-  // joined
   furnace?: Furnace
 }
 
@@ -133,15 +152,14 @@ export interface AuditLog {
   at: string
 }
 
-// UI 유틸 타입
 export interface KpiData {
   label: string
   value: string | number
   unit?: string
-  change?: number // 전월 대비 증감률 (%)
+  change?: number
   changeLabel?: string
   trend?: 'up' | 'down' | 'neutral'
-  goodWhenDown?: boolean // true면 값이 내려갈 때 파란색 (원단위 등)
+  goodWhenDown?: boolean
 }
 
 export interface ChartDataPoint {

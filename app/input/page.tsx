@@ -48,7 +48,8 @@ export default function InputHomePage() {
       const { count, error } = await supabase
         .from('production_records')
         .select('*', { count: 'exact', head: true })
-        .eq('work_month', monthDate)
+        .gte('work_date', `${ym}-01`)
+        .lte('work_date', `${ym}-${String(lastDay).padStart(2, '0')}`)
 
       if (error) throw error
       return count ?? 0

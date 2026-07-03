@@ -93,7 +93,7 @@ function datasetTone(datasetKey: ImportDatasetKey) {
   }
 }
 
-const LAYOUT_LABELS: Record<ImportLayout, string> = {
+const LAYOUT_LABELS: Partial<Record<ImportLayout, string>> = {
   auto: '자동 감지',
   long: '단건 폼',
   'gas-daily-wide': '일일 그리드',

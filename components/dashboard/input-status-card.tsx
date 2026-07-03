@@ -13,12 +13,13 @@ const supabase = createClient()
 export function InputStatusCard() {
   const currentYm = new Date().toISOString().slice(0, 7) // 예: 2026-07
   const todayDate = new Date().toISOString().slice(0, 10)
+  const lastDay = new Date(Number(currentYm.slice(0, 4)), Number(currentYm.slice(5, 7)), 0).getDate()
 
   // 1. 이번달 생산실적 확인
   const { data: prodCount = 0 } = useQuery({
     queryKey: ['status-prod', currentYm],
     queryFn: async () => {
-      const { count } = await supabase.from('production_records').select('*', { count: 'exact', head: true }).gte('work_month', `${currentYm}-01`).lte('work_month', `${currentYm}-31`)
+      const { count } = await supabase.from('production_records').select('*', { count: 'exact', head: true }).gte('work_date', `${currentYm}-01`).lte('work_date', `${currentYm}-${String(lastDay).padStart(2, '0')}`)
       return count || 0
     },
   })

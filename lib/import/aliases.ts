@@ -7,64 +7,61 @@ type LineRef = { code: string; name: string }
 type ProductRef = { name: string }
 
 const BUILTIN_FIELD_ALIASES: Record<ImportFieldKey, string[]> = {
-  date: ['일자', '날짜', 'date', 'day', '검침일'],
-  ym: ['월', '작업월', 'ym', 'month'],
-  work_month: ['작업월', '단조작업일', '작업일', '월', 'ym', 'month'],
-  furnace_code: ['호기', '가열로', 'furnace', 'furnace_code'],
-  line_code: ['라인', '생산라인', '공정', '프레스별', '작업장', 'line', 'line_code'],
-  product_name: ['제품', '품목', '사양', '소재품명', '품명', '제품형상', 'product', 'product_name'],
-  shift: ['주간', '야간', '주야', '작업조', 'day', 'night', 'both', 'shift'],
-  value: ['값', '검침값', 'value', 'reading'],
-  charge_weight_kg: ['장입량', '투입중량', '중량', 'charge', 'weight', 'kg'],
-  gas_usage: ['가스사용량', '가스량', '검침값', '사용량', 'gas', 'usage'],
-  source: ['출처', '구분', 'source', '검침구분'],
-  plan_ton: ['계획', '목표', 'plan', 'plan_ton'],
-  actual_ton: ['실적', '생산중량(양품)', '생산중량', '중량', 'actual', 'actual_ton'],
-  hwangji_ton: ['황지', 'hwangji', 'hwangji_ton'],
-  cogging_ton: ['코깅', 'cogging', 'cogging_ton'],
-  work_hours: ['작업시간', '시간', 'hours', 'work_hours'],
-  work_count: ['작업횟수', '횟수', 'count', 'work_count'],
-  order_no: ['수주번호', '오더', 'order', 'lot', '지시번호', 'order_no'],
-  note: ['비고', '메모', 'note'],
+  date: ['date', 'day', '일자', '날짜'],
+  work_date: ['work_date', '작업일', '일자', '날짜'],
+  ym: ['ym', 'month', '월', '기준월'],
+  work_month: ['work_month', '작업월', '월', '기준월'],
+  dept_line: ['dept_line', '작업부서', '부서', '라인'],
+  line_code: ['line_code', '라인코드', '생산라인', '공정라인'],
+  product: ['product', '제품'],
+  product_name: ['product_name', '제품명', '품명', '제품'],
+  material: ['material', '재질', '소재'],
+  process: ['process', '공정'],
+  shift: ['shift', '주야', '주간', '야간', 'day', 'night', 'both'],
+  value: ['value', '값', '검침값', '가스사용량'],
+  charge_weight_kg: ['charge_weight_kg', '장입량', '투입중량', 'kg'],
+  charge_weight: ['charge_weight', '장입량', '투입중량'],
+  gas_usage: ['gas_usage', '가스사용량', '사용량', '검침값'],
+  source: ['source', '출처', '구분'],
+  order_size: ['order_size', '수주치수', '수주규격'],
+  work_size: ['work_size', '작업치수', '작업규격'],
+  order_weight: ['order_weight', '수주중량', '실적', '생산량', 'actual', 'actual_ton'],
+  plan_ton: ['plan_ton', '계획', '목표'],
+  actual_ton: ['actual_ton', '실적', '생산량'],
+  hwangji_ton: ['hwangji_ton', '황지'],
+  cogging_ton: ['cogging_ton', '코깅'],
+  rework_self_ton: ['rework_self_ton', '자체수정'],
+  rework_quality_ton: ['rework_quality_ton', '품질수정'],
+  furnace_code: ['furnace_code', '가열로', '호기', 'furnace'],
+  work_hours: ['work_hours', '작업시간', '시간', 'hours'],
+  work_count: ['work_count', '작업횟수', '횟수', 'count'],
+  order_no: ['order_no', '수주번호', '오더번호', 'lot', 'order'],
+  note: ['note', '비고', '메모'],
+  ton_per_hour: ['ton_per_hour', 'tph', '시간당생산량'],
+  ton_per_run: ['ton_per_run', '1회당생산량', 'tpr'],
+  entered_by_name: ['entered_by_name', '입력자', '입력자명'],
 }
 
 function addTokens(target: Set<string>, values: Array<string | null | undefined>) {
   values.forEach((value) => {
-    const normalized = normalizeToken(value)
-    if (normalized) target.add(normalized)
+    const token = normalizeToken(value)
+    if (token) target.add(token)
+  })
+}
+
+function registerFieldTokens(map: Map<string, ImportFieldKey>, field: ImportFieldKey, values: string[]) {
+  values.forEach((value) => {
+    const token = normalizeToken(value)
+    if (token) map.set(token, field)
   })
 }
 
 export function buildFieldAliasMap(aliases: ImportAliasRecord[] = []) {
-  const map = new Map<string, ImportFieldKey>()
+  const map = new Map<string, ImportFieldKey>();
 
-  const builtinEntries: Array<[ImportFieldKey, string[]]> = [
-    ['date', BUILTIN_FIELD_ALIASES.date],
-    ['ym', BUILTIN_FIELD_ALIASES.ym],
-    ['work_month', BUILTIN_FIELD_ALIASES.work_month],
-    ['furnace_code', BUILTIN_FIELD_ALIASES.furnace_code],
-    ['line_code', BUILTIN_FIELD_ALIASES.line_code],
-    ['product_name', BUILTIN_FIELD_ALIASES.product_name],
-    ['shift', BUILTIN_FIELD_ALIASES.shift],
-    ['value', BUILTIN_FIELD_ALIASES.value],
-    ['charge_weight_kg', BUILTIN_FIELD_ALIASES.charge_weight_kg],
-    ['gas_usage', BUILTIN_FIELD_ALIASES.gas_usage],
-    ['source', BUILTIN_FIELD_ALIASES.source],
-    ['plan_ton', BUILTIN_FIELD_ALIASES.plan_ton],
-    ['actual_ton', BUILTIN_FIELD_ALIASES.actual_ton],
-    ['hwangji_ton', BUILTIN_FIELD_ALIASES.hwangji_ton],
-    ['cogging_ton', BUILTIN_FIELD_ALIASES.cogging_ton],
-    ['work_hours', BUILTIN_FIELD_ALIASES.work_hours],
-    ['work_count', BUILTIN_FIELD_ALIASES.work_count],
-    ['order_no', BUILTIN_FIELD_ALIASES.order_no],
-    ['note', BUILTIN_FIELD_ALIASES.note],
-  ]
-
-  builtinEntries.forEach(([field, values]) => {
-    values.forEach((value) => {
-      const token = normalizeToken(value)
-      if (token) map.set(token, field)
-    })
+  const entries = Object.entries(BUILTIN_FIELD_ALIASES) as Array<[ImportFieldKey, string[]]>
+  entries.forEach(([field, values]) => {
+    registerFieldTokens(map, field, values)
   })
 
   aliases
@@ -103,7 +100,7 @@ export function buildFurnaceLookup(furnaces: FurnaceRef[] = [], aliases: ImportA
 
     const digits = furnace.code.match(/\d{1,2}/)?.[0]
     if (digits) {
-      addTokens(tokens, [digits, `${digits}호`, `${digits}호기`, `#${digits}`, `no${digits}`])
+      addTokens(tokens, [digits, `${digits}호기`, `#${digits}`, `no${digits}`])
     }
 
     tokens.forEach((token) => {
