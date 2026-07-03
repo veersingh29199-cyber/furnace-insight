@@ -526,7 +526,7 @@ export default function ProductionInputPage() {
       const { from, to } = monthBounds(monthYm)
       const { data, error } = await supabase
         .from(DB.tables.gasDailyReadings)
-        .select('date,furnace_code,shift,value')
+        .select(`${DB.gasDailyReadings.date}, ${DB.gasDailyReadings.furnaceCode}, ${DB.gasDailyReadings.shift}, ${DB.gasDailyReadings.value}`)
         .gte(DB.gasDailyReadings.date, from)
         .lte(DB.gasDailyReadings.date, to)
 

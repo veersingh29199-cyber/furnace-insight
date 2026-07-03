@@ -11,6 +11,7 @@ import { Activity, AlertTriangle, Database, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useTargets } from '@/hooks/use-dashboard'
 import { DB } from '@/types/db'
+import { monthDateSeries } from '@/lib/input/common'
 import {
   getProductionDeptLine,
   getProductionOrderWeight,
@@ -32,6 +33,7 @@ export default function DataHealthPage() {
   const currentYear = new Date().getFullYear().toString()
   const { from, to } = yearBounds(currentYear)
   const { data: targets } = useTargets(Number(currentYear))
+  const yearMonths = useMemo(() => monthDateSeries(`${currentYear}-01-01`, `${currentYear}-12-01`), [currentYear])
 
   const tphTarget = targets?.find((target) => target.metric === 'ton_per_hour' && target.scope === 'company' && target.year === Number(currentYear))?.target_value ?? 20
   const gasTarget = targets?.find((target) => target.metric === 'gas_unit' && target.scope === 'company' && target.year === Number(currentYear))?.target_value ?? 150
@@ -66,9 +68,8 @@ export default function DataHealthPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, created_by, created_at')
-        .gte(DB.gasRecords.ym, `${currentYear}-01-01`)
-        .lte(DB.gasRecords.ym, `${currentYear}-12-31`)
+        .select(`id, ${DB.gasRecords.ym}, ${DB.gasRecords.furnaceCode}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.gasUnit}`)
+        .in(DB.gasRecords.ym, yearMonths)
         .order(DB.gasRecords.ym, { ascending: false })
 
       if (error) throw error

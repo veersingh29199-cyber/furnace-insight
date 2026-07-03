@@ -34,6 +34,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { useTargets } from '@/hooks/use-dashboard'
 import { DB } from '@/types/db'
+import { monthDateSeries } from '@/lib/input/common'
 import {
   getProductionDeptLine,
   getProductionOrderWeight,
@@ -69,11 +70,15 @@ export default function ReportsPage() {
   const reportContainerRef = useRef<HTMLDivElement>(null)
 
   const { from: yearStart, to: yearEnd } = yearRange(selectedYear)
+  const yearMonths = useMemo(() => monthDateSeries(`${selectedYear}-01-01`, `${selectedYear}-12-01`), [selectedYear])
 
   const { data: lines } = useQuery({
     queryKey: ['report-lines'],
     queryFn: async () => {
-      const { data, error } = await supabase.from(DB.tables.lines).select('code, name').order('code')
+      const { data, error } = await supabase
+        .from(DB.tables.lines)
+        .select(`${DB.lines.code}, ${DB.lines.name}`)
+        .order(DB.lines.code)
       if (error) throw error
       return data ?? []
     },
@@ -82,7 +87,10 @@ export default function ReportsPage() {
   const { data: furnaces } = useQuery({
     queryKey: ['report-furnaces'],
     queryFn: async () => {
-      const { data, error } = await supabase.from(DB.tables.furnaces).select('code, name').order('code')
+      const { data, error } = await supabase
+        .from(DB.tables.furnaces)
+        .select(`${DB.furnaces.code}, ${DB.furnaces.name}`)
+        .order(DB.furnaces.code)
       if (error) throw error
       return data ?? []
     },
@@ -127,9 +135,8 @@ export default function ReportsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, created_by, created_at')
-        .gte(DB.gasRecords.ym, `${selectedYear}-01-01`)
-        .lte(DB.gasRecords.ym, `${selectedYear}-12-31`)
+        .select(`${DB.gasRecords.ym}, ${DB.gasRecords.furnaceCode}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.gasUnit}`)
+        .in(DB.gasRecords.ym, yearMonths)
 
       if (error) throw error
       return data ?? []
@@ -141,9 +148,8 @@ export default function ReportsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasCompanyMonthly)
-        .select('*')
-        .gte(DB.gasCompanyMonthly.ym, `${selectedYear}-01-01`)
-        .lte(DB.gasCompanyMonthly.ym, `${selectedYear}-12-31`)
+        .select(`${DB.gasCompanyMonthly.ym}, ${DB.gasCompanyMonthly.chargeWeightKg}, ${DB.gasCompanyMonthly.gasUsage}`)
+        .in(DB.gasCompanyMonthly.ym, yearMonths)
         .order(DB.gasCompanyMonthly.ym)
 
       if (error) throw error

@@ -8,6 +8,7 @@ import { DB } from '@/types/db'
 import type { Benchmark, Target } from '@/types'
 
 const supabase = createClient()
+type BenchmarkRow = Pick<Benchmark, 'org' | 'metric' | 'scope' | 'value'>
 
 function monthRange(monthDate: string) {
   const [yearStr, monthStr] = monthDate.split('-')
@@ -53,17 +54,17 @@ export function useDashboardKpi() {
       let activeMonth = normalizeMonthDate(defaultMonth) ?? defaultMonth
 
       let { data: gasThis } = await supabase
-        .from('gas_records')
-        .select('gas_unit, charge_weight_kg, gas_usage, ym')
-        .eq('ym', activeMonth)
-        .not('gas_unit', 'is', null)
+        .from(DB.tables.gasRecords)
+        .select(`${DB.gasRecords.gasUnit}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.ym}`)
+        .eq(DB.gasRecords.ym, activeMonth)
+        .not(DB.gasRecords.gasUnit, 'is', null)
 
       if (!gasThis || gasThis.length === 0) {
         const { data: latestGas } = await supabase
-          .from('gas_records')
-          .select('gas_unit, charge_weight_kg, gas_usage, ym')
-          .not('gas_unit', 'is', null)
-          .order('ym', { ascending: false })
+          .from(DB.tables.gasRecords)
+          .select(`${DB.gasRecords.gasUnit}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.ym}`)
+          .not(DB.gasRecords.gasUnit, 'is', null)
+          .order(DB.gasRecords.ym, { ascending: false })
           .limit(10)
         if (latestGas && latestGas.length > 0) {
           const latestMonth = normalizeMonthDate(latestGas[0].ym)
@@ -87,28 +88,28 @@ export function useDashboardKpi() {
       const lastYearMonthRange = monthRange(lastYearMonth)
 
       const { data: gasLast } = await supabase
-        .from('gas_records')
-        .select('gas_unit')
-        .eq('ym', lastMonth)
-        .not('gas_unit', 'is', null)
+        .from(DB.tables.gasRecords)
+        .select(DB.gasRecords.gasUnit)
+        .eq(DB.gasRecords.ym, lastMonth)
+        .not(DB.gasRecords.gasUnit, 'is', null)
 
       const { data: gasLastYear } = await supabase
-        .from('gas_records')
-        .select('gas_unit')
-        .eq('ym', lastYearMonth)
-        .not('gas_unit', 'is', null)
+        .from(DB.tables.gasRecords)
+        .select(DB.gasRecords.gasUnit)
+        .eq(DB.gasRecords.ym, lastYearMonth)
+        .not(DB.gasRecords.gasUnit, 'is', null)
 
       let { data: prodThis } = await supabase
-        .from('production_records')
-        .select('plan_ton, order_weight, actual_ton, work_hours, work_date')
-        .gte('work_date', activeRange.from)
-        .lte('work_date', activeRange.to)
+        .from(DB.tables.productionRecords)
+        .select(`${DB.productionRecords.plan}, ${DB.productionRecords.orderWeight}, ${DB.productionRecords.actual}, ${DB.productionRecords.workHours}, ${DB.productionRecords.workDate}`)
+        .gte(DB.productionRecords.workDate, activeRange.from)
+        .lte(DB.productionRecords.workDate, activeRange.to)
 
       if ((!prodThis || prodThis.length === 0) && activeMonth === defaultMonth) {
         const { data: latestProd } = await supabase
-          .from('production_records')
-          .select('plan_ton, order_weight, actual_ton, work_hours, work_date')
-          .order('work_date', { ascending: false })
+          .from(DB.tables.productionRecords)
+          .select(`${DB.productionRecords.plan}, ${DB.productionRecords.orderWeight}, ${DB.productionRecords.actual}, ${DB.productionRecords.workHours}, ${DB.productionRecords.workDate}`)
+          .order(DB.productionRecords.workDate, { ascending: false })
           .limit(10)
         if (latestProd && latestProd.length > 0) {
           const prodMonth = latestProd[0].work_date?.slice(0, 7) ?? activeMonth.slice(0, 7)
@@ -117,20 +118,20 @@ export function useDashboardKpi() {
       }
 
       const { data: prodLast } = await supabase
-        .from('production_records')
-        .select('plan_ton, order_weight, actual_ton, work_hours, work_date')
-        .gte('work_date', lastMonthRange.from)
-        .lte('work_date', lastMonthRange.to)
+        .from(DB.tables.productionRecords)
+        .select(`${DB.productionRecords.plan}, ${DB.productionRecords.orderWeight}, ${DB.productionRecords.actual}, ${DB.productionRecords.workHours}, ${DB.productionRecords.workDate}`)
+        .gte(DB.productionRecords.workDate, lastMonthRange.from)
+        .lte(DB.productionRecords.workDate, lastMonthRange.to)
 
       const { data: prodLastYear } = await supabase
-        .from('production_records')
-        .select('plan_ton, order_weight, actual_ton, work_hours, work_date')
-        .gte('work_date', lastYearMonthRange.from)
-        .lte('work_date', lastYearMonthRange.to)
+        .from(DB.tables.productionRecords)
+        .select(`${DB.productionRecords.plan}, ${DB.productionRecords.orderWeight}, ${DB.productionRecords.actual}, ${DB.productionRecords.workHours}, ${DB.productionRecords.workDate}`)
+        .gte(DB.productionRecords.workDate, lastYearMonthRange.from)
+        .lte(DB.productionRecords.workDate, lastYearMonthRange.to)
 
       const { data: targets } = await supabase
         .from(DB.tables.targets)
-        .select(`${DB.targets.year}, ${DB.targets.dept}, ${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.note}`)
+        .select(`${DB.targets.year}, ${DB.targets.dept}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.note}`)
         .order(DB.targets.year, { ascending: false, nullsFirst: false })
         .order(DB.targets.dept, { ascending: true })
         .order(DB.targets.metric, { ascending: true })
@@ -205,7 +206,7 @@ export function useDashboardKpi() {
         tphTarget,
         totalActualTon: totalActualThis,
         totalPlanTon: totalPlanThis,
-        benchmarks: benchmarks ?? [],
+        benchmarks: (benchmarks ?? []) as BenchmarkRow[],
         gasRecordCount: gasThis?.length ?? 0,
       }
     },
@@ -263,7 +264,7 @@ export function useTargets(year?: number, dept?: string) {
     queryFn: async () => {
       let query = supabase
         .from(DB.tables.targets)
-        .select('id, year, dept, scope, ref, metric, target_value, note')
+        .select(`${DB.targets.year}, ${DB.targets.dept}, ${DB.targets.scope}, ${DB.targets.ref}, ${DB.targets.metric}, ${DB.targets.targetValue}, ${DB.targets.note}`)
         .order(DB.targets.scope, { ascending: true })
         .order(DB.targets.year, { ascending: false, nullsFirst: false })
         .order(DB.targets.ref, { ascending: true })
@@ -285,12 +286,12 @@ export function useBenchmarks() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.benchmarks)
-        .select('id, org, metric, scope, value')
+        .select(`${DB.benchmarks.org}, ${DB.benchmarks.metric}, ${DB.benchmarks.scope}, ${DB.benchmarks.value}`)
         .order(DB.benchmarks.org, { ascending: true })
         .order(DB.benchmarks.metric, { ascending: true })
         .order(DB.benchmarks.scope, { ascending: true })
       if (error) throw error
-      return (data ?? []) as Benchmark[]
+      return (data ?? []) as BenchmarkRow[]
     },
   })
 }

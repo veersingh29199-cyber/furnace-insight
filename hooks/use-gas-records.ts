@@ -6,7 +6,8 @@ import { toast } from 'sonner'
 import type { GasRecord } from '@/types'
 import type { GasRecordInput } from '@/lib/validations'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
-import { normalizeMonthDate } from '@/lib/input/common'
+import { currentMonthDate } from '@/lib/utils'
+import { monthDateSeries, normalizeMonthDate } from '@/lib/input/common'
 
 const supabase = createClient()
 
@@ -24,13 +25,20 @@ export function useGasRecords(params?: {
     queryFn: async () => {
       const ymFrom = normalizeMonthDate(params?.ymFrom)
       const ymTo = normalizeMonthDate(params?.ymTo)
+      const monthDates =
+        ymFrom != null
+          ? monthDateSeries(ymFrom, ymTo ?? currentMonthDate())
+          : ymTo != null
+            ? monthDateSeries(ymTo, ymTo)
+            : []
       let query = supabase
         .from(DB.tables.gasRecords)
-        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, order_no, source_upload_id, created_by, created_at')
-        .order('ym', { ascending: false })
+        .select(
+          `id, ${DB.gasRecords.ym}, ${DB.gasRecords.furnaceCode}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.gasUnit}, ${DB.gasRecords.source}, ${DB.gasRecords.note}, ${DB.gasRecords.orderNo}, ${DB.gasRecords.sourceUploadId}, ${DB.gasRecords.createdBy}, ${DB.gasRecords.createdAt}`
+        )
+        .order(DB.gasRecords.ym, { ascending: false })
 
-      if (ymFrom) query = query.gte('ym', ymFrom)
-      if (ymTo) query = query.lte('ym', ymTo)
+      if (monthDates.length > 0) query = query.in(DB.gasRecords.ym, monthDates)
       if (params?.furnaceCode) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceCode)
       else if (params?.furnaceId) query = query.eq(DB.gasRecords.furnaceCode, params.furnaceId)
 
@@ -91,7 +99,7 @@ export function useGasStats(ym: string) {
       const month = normalizeMonthDate(ym) ?? ym
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('ym, gas_unit, furnace_code')
+        .select(`${DB.gasRecords.ym}, ${DB.gasRecords.gasUnit}, ${DB.gasRecords.furnaceCode}`)
         .eq(DB.gasRecords.ym, month)
         .not('gas_unit', 'is', null)
 

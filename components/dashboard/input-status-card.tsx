@@ -22,7 +22,11 @@ export function InputStatusCard() {
   const { data: prodCount = 0 } = useQuery({
     queryKey: ['status-prod', currentYm],
     queryFn: async () => {
-      const { count } = await supabase.from('production_records').select('*', { count: 'exact', head: true }).gte('work_date', `${currentYm}-01`).lte('work_date', `${currentYm}-${String(lastDay).padStart(2, '0')}`)
+      const { count } = await supabase
+        .from(DB.tables.productionRecords)
+        .select('*', { count: 'exact', head: true })
+        .gte(DB.productionRecords.workDate, `${currentYm}-01`)
+        .lte(DB.productionRecords.workDate, `${currentYm}-${String(lastDay).padStart(2, '0')}`)
       return count || 0
     },
   })
@@ -43,7 +47,10 @@ export function InputStatusCard() {
   const { data: dailyCount = 0 } = useQuery({
     queryKey: ['status-daily', todayDate],
     queryFn: async () => {
-      const { count } = await supabase.from('gas_daily_readings').select('*', { count: 'exact', head: true }).eq('date', todayDate)
+      const { count } = await supabase
+        .from(DB.tables.gasDailyReadings)
+        .select('*', { count: 'exact', head: true })
+        .eq(DB.gasDailyReadings.date, todayDate)
       return count || 0
     },
   })

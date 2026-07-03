@@ -231,9 +231,11 @@ export default function GasMonthlyInputPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('*')
-        .eq('ym', ymToDate(previousMonth))
-        .order('created_at', { ascending: true })
+        .select(
+          `id, ${DB.gasRecords.ym}, ${DB.gasRecords.furnaceCode}, ${DB.gasRecords.chargeWeightKg}, ${DB.gasRecords.gasUsage}, ${DB.gasRecords.gasUnit}, ${DB.gasRecords.source}, ${DB.gasRecords.orderNo}, ${DB.gasRecords.note}, ${DB.gasRecords.createdBy}, ${DB.gasRecords.createdAt}, ${DB.gasRecords.enteredByName}, ${DB.gasRecords.enteredByShift}, ${DB.gasRecords.sourceUploadId}`
+        )
+        .eq(DB.gasRecords.ym, ymToDate(previousMonth))
+        .order(DB.gasRecords.createdAt, { ascending: true })
 
       if (error) throw error
       return (data ?? []) as GasRecord[]

@@ -21,6 +21,7 @@ import type { AppSetting, Benchmark, BenchmarkOrg, Furnace, Line, Product, RawMa
 import type { TargetMetric } from '@/types'
 
 const supabase = createClient()
+type BenchmarkRow = Pick<Benchmark, 'org' | 'metric' | 'scope' | 'value'>
 
 const BENCHMARK_ORGS: BenchmarkOrg[] = ['두산', '태상', '태웅']
 const BENCHMARK_SCOPES = ['전사', '실적', '부서']
@@ -100,12 +101,12 @@ function useBenchmarksAdmin() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.benchmarks)
-        .select('id, org, metric, scope, value')
+        .select(`${DB.benchmarks.org}, ${DB.benchmarks.metric}, ${DB.benchmarks.scope}, ${DB.benchmarks.value}`)
         .order(DB.benchmarks.org)
         .order(DB.benchmarks.metric)
         .order(DB.benchmarks.scope)
       if (error) throw error
-      return (data ?? []) as Benchmark[]
+      return (data ?? []) as BenchmarkRow[]
     },
   })
 }
@@ -332,7 +333,7 @@ function BenchmarksPanel() {
   const [scope, setScope] = useState('전사')
   const [value, setValue] = useState('')
 
-  const loadBenchmark = (row: Benchmark) => {
+  const loadBenchmark = (row: BenchmarkRow) => {
     setOrg(row.org)
     setMetric(row.metric)
     setScope(row.scope)
@@ -458,7 +459,7 @@ function BenchmarksPanel() {
               </TableHeader>
               <TableBody>
                 {benchmarks?.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={`${row.org}-${row.metric}-${row.scope}`}>
                     <TableCell className="font-medium">{row.org}</TableCell>
                     <TableCell>{row.metric === 'gas_unit' ? '가스원단위' : row.metric === 'ton_per_hour' ? '시간당 생산량' : '생산량'}</TableCell>
                     <TableCell>{row.scope}</TableCell>

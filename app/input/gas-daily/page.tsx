@@ -360,12 +360,14 @@ export default function GasDailyInputPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasDailyReadings)
-        .select('*')
-        .gte('date', `${previousMonth}-01`)
-        .lte('date', `${previousMonth}-${String(previousMonthLastDay).padStart(2, '0')}`)
-        .order('date', { ascending: true })
-        .order('shift', { ascending: true, nullsFirst: true })
-        .order('furnace_code', { ascending: true })
+        .select(
+          `id, ${DB.gasDailyReadings.date}, ${DB.gasDailyReadings.furnaceCode}, ${DB.gasDailyReadings.shift}, ${DB.gasDailyReadings.value}, ${DB.gasDailyReadings.orderNo}, ${DB.gasDailyReadings.sourceUploadId}, ${DB.gasDailyReadings.createdBy}, ${DB.gasDailyReadings.enteredByName}, ${DB.gasDailyReadings.enteredByShift}`
+        )
+        .gte(DB.gasDailyReadings.date, `${previousMonth}-01`)
+        .lte(DB.gasDailyReadings.date, `${previousMonth}-${String(previousMonthLastDay).padStart(2, '0')}`)
+        .order(DB.gasDailyReadings.date, { ascending: true })
+        .order(DB.gasDailyReadings.shift, { ascending: true, nullsFirst: true })
+        .order(DB.gasDailyReadings.furnaceCode, { ascending: true })
 
       if (error) throw error
       return (data ?? []) as GasDailyReading[]
