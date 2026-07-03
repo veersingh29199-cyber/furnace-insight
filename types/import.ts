@@ -1,4 +1,4 @@
-import type { GasSource, ImportDatasetKey, ImportLayout, Shift } from '@/types'
+import type { GasSource, ImportDatasetKey, ImportLayout, Shift, TargetMetric, TargetScope } from '@/types'
 export type { GasSource, ImportDatasetKey, ImportLayout, Shift } from '@/types'
 
 export type ImportFieldKey =
@@ -82,14 +82,18 @@ export interface ImportUploadRecord {
   storage_path: string
   file_hash: string
   file_size: number
+  status: 'stored' | 'parsed' | 'failed' | 'reprocessing'
   layout: ImportLayout
   row_count: number
   saved_count: number
   failed_count: number
   warning_count: number
+  template_id: string | null
   template_name: string | null
   mapping_json: Record<string, unknown>
   summary_json: Record<string, unknown>
+  parsed_at?: string | null
+  error_message?: string | null
   created_by: string | null
   created_at: string
   updated_at: string | null
@@ -200,6 +204,7 @@ export interface GasDailyImportRow {
   value: number
   order_no?: string | null
   note?: string | null
+  source_upload_id?: string | null
 }
 
 export interface GasMonthlyImportRow {
@@ -210,6 +215,7 @@ export interface GasMonthlyImportRow {
   source: GasSource
   order_no?: string | null
   note?: string | null
+  source_upload_id?: string | null
 }
 
 export interface ProductionImportRow {
@@ -241,6 +247,7 @@ export interface ProductionImportRow {
   cogging_ton: number
   rework_self_ton: number
   rework_quality_ton: number
+  source_upload_id?: string | null
 }
 
 export interface GasCompanyMonthlyImportRow {
@@ -248,16 +255,58 @@ export interface GasCompanyMonthlyImportRow {
   charge_weight_kg: number
   gas_usage: number
   note?: string | null
+  source_upload_id?: string | null
+}
+
+export interface LineOutputDailyImportRow {
+  work_date: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note?: string | null
+  source_upload_id?: string | null
+}
+
+export interface LineOutputMonthlyImportRow {
+  ym: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note?: string | null
+  source_upload_id?: string | null
 }
 
 export interface TargetImportRow {
   year: number
   dept: string
-  scope: string
-  metric: string
+  scope: TargetScope
+  metric: TargetMetric
   target_value: number
   ref?: string | null
   note?: string | null
+  source_upload_id?: string | null
 }
 
 export interface WorkStandardImportRow {
@@ -270,6 +319,7 @@ export interface WorkStandardImportRow {
   order_size: string | null
   std_work_count: number
   note?: string | null
+  source_upload_id?: string | null
 }
 
 export interface RawMaterialSpecImportRow {
@@ -278,4 +328,5 @@ export interface RawMaterialSpecImportRow {
   raw_material: string
   spec: string
   note?: string | null
+  source_upload_id?: string | null
 }

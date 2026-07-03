@@ -12,6 +12,7 @@ import {
   saveGasCompanyMonthlyImports,
   saveGasDailyImports,
   saveGasMonthlyImports,
+  saveLineOutputImports,
   saveRawMaterialSpecImports,
   saveTargetImports,
   saveProductionImports,
@@ -26,6 +27,8 @@ import type {
   ImportAliasRecord,
   ImportDatasetKey,
   ImportMappingState,
+  LineOutputDailyImportRow,
+  LineOutputMonthlyImportRow,
   RawMaterialSpecImportRow,
   TargetImportRow,
   ProductionImportRow,
@@ -128,6 +131,7 @@ async function loadMasterData(supabase: Awaited<ReturnType<typeof createAdminCli
 async function saveRows(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
   datasetKey: ImportDatasetKey,
+  layout: ImportMappingState['layout'],
   validRows: unknown[],
   userId: string | null,
   enteredByName: string | null,
@@ -155,6 +159,17 @@ async function saveRows(
       enteredByName,
       enteredByShift,
     })
+  }
+
+  if (datasetKey === 'line-output') {
+    return saveLineOutputImports(
+      supabase,
+      validRows as Array<LineOutputDailyImportRow | LineOutputMonthlyImportRow>,
+      {
+        userId,
+      },
+      layout === 'line-output-monthly' ? 'line-output-monthly' : 'line-output-daily'
+    )
   }
 
   if (datasetKey === 'targets') {
@@ -200,78 +215,166 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '분석할 시트를 찾지 못했습니다.' }, { status: 400 })
     }
 
-    const requestedSheet = analyses.find((sheet) => sheet.sheetName === sheetName) ?? analyses[0]
-    const datasetKey = (parsedMapping?.datasetKey ?? requestedSheet.datasetGuess ?? 'gas-monthly') as ImportDatasetKey
-    const effectiveMapping = mergeMapping(
-      parsedMapping ? { ...parsedMapping, datasetKey } : null,
-      requestedSheet.sheetName,
-      datasetKey
-    )
-
-    const preview = buildImportPreview(requestedSheet, effectiveMapping, {
-      datasetKey: effectiveMapping.datasetKey,
-      layout: effectiveMapping.layout,
-      signature: requestedSheet.templateSignature,
-      columns: requestedSheet.columns,
-      bindings: {} as never,
-      master,
-    })
-
     const attachment = await uploadImportAttachment(
       supabase,
       fileValue,
-      effectiveMapping.datasetKey,
-      requestedSheet.sheetName
+      (parsedMapping?.datasetKey ?? analyses[0]?.datasetGuess ?? 'gas-monthly') as ImportDatasetKey
     )
 
-    const summary = preview.validRows.length > 0
-      ? await saveRows(
-          supabase,
-          effectiveMapping.datasetKey,
-          preview.validRows as unknown[],
-          user?.id ?? null,
-          enteredByName,
-          enteredByShift
-        )
-      : {
-          total: preview.validRows.length,
-          saved: 0,
-          failed: 0,
-          errors: [],
-        }
+    const requestedSheet = analyses.find((sheet) => sheet.sheetName === sheetName) ?? analyses[0]
+    const fileDatasetKey = (parsedMapping?.datasetKey ?? requestedSheet?.datasetGuess ?? 'gas-monthly') as ImportDatasetKey
+    const sheetsToProcess =
+      fileDatasetKey === 'line-output'
+        ? analyses.filter((sheet) => sheet.datasetGuess === 'line-output')
+        : [requestedSheet]
 
-    const uploadRecord = await upsertImportUploadRecord(supabase, {
-      dataset_key: effectiveMapping.datasetKey,
-      sheet_name: requestedSheet.sheetName,
-      file_name: fileValue.name,
-      storage_bucket: attachment.bucket,
-      storage_path: attachment.path,
-      file_hash: attachment.fileHash,
-      file_size: attachment.fileSize,
-      layout: effectiveMapping.layout,
-      row_count: preview.rows.length,
-      saved_count: summary.saved,
-      failed_count: preview.invalidRowCount + summary.failed,
-      warning_count: preview.warningRowCount,
-      template_name: templateName,
-      mapping_json: serializeImportMapping(effectiveMapping, requestedSheet),
-      summary_json: {
-        previewSummary: `${summary.saved} saved / ${summary.failed} failed`,
-        validRows: preview.validRows.length,
-        invalidRows: preview.invalidRowCount,
-        warningRows: preview.warningRowCount,
-        rowCount: preview.rows.length,
-        fileHash: attachment.fileHash,
-        sheetConfidence: requestedSheet.confidence,
-      },
-      created_by: user?.id ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    const sheetQueue = sheetsToProcess.length > 0 ? sheetsToProcess : requestedSheet ? [requestedSheet] : []
+    if (sheetQueue.length === 0) {
+      return NextResponse.json({ error: '대상 시트를 찾지 못했습니다.' }, { status: 400 })
+    }
+
+    const uploadResults: Array<{ summary: ImportSaveSummary; upload: Awaited<ReturnType<typeof upsertImportUploadRecord>> }> = []
+    let totalSaved = 0
+    let totalFailed = 0
+    let totalValidRows = 0
+    let totalInvalidRows = 0
+    let totalWarningRows = 0
+    const errorMessages: string[] = []
+
+    for (const sheet of sheetQueue) {
+      const datasetKey = (parsedMapping?.datasetKey ?? sheet.datasetGuess ?? fileDatasetKey) as ImportDatasetKey
+      const effectiveMapping =
+        datasetKey === 'line-output'
+          ? buildDefaultImportMappingForSheet(sheet, datasetKey)
+          : mergeMapping(
+              parsedMapping ? { ...parsedMapping, datasetKey } : null,
+              sheet.sheetName,
+              datasetKey
+            )
+
+      const preview = buildImportPreview(sheet, effectiveMapping, {
+        datasetKey: effectiveMapping.datasetKey,
+        layout: effectiveMapping.layout,
+        signature: sheet.templateSignature,
+        columns: sheet.columns,
+        bindings: {} as never,
+        master,
+      })
+
+      const storedUpload = await upsertImportUploadRecord(supabase, {
+        dataset_key: effectiveMapping.datasetKey,
+        sheet_name: sheet.sheetName,
+        file_name: fileValue.name,
+        storage_bucket: attachment.bucket,
+        storage_path: attachment.path,
+        file_hash: attachment.fileHash,
+        file_size: attachment.fileSize,
+        layout: effectiveMapping.layout,
+        row_count: preview.rows.length,
+        saved_count: 0,
+        failed_count: preview.invalidRowCount,
+        warning_count: preview.warningRowCount,
+        template_name: templateName,
+        mapping_json: serializeImportMapping(effectiveMapping, sheet),
+        summary_json: {
+          status: 'stored',
+          validRows: preview.validRows.length,
+          invalidRows: preview.invalidRowCount,
+          warningRows: preview.warningRowCount,
+          rowCount: preview.rows.length,
+          fileHash: attachment.fileHash,
+          sheetConfidence: sheet.confidence,
+        },
+        status: 'stored',
+        template_id: null,
+        parsed_at: null,
+        error_message: null,
+        created_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+
+      const rowsWithUploadId = preview.validRows.map((row) => ({
+        ...(row as unknown as Record<string, unknown>),
+        source_upload_id: storedUpload.id,
+      }))
+
+      const summary =
+        rowsWithUploadId.length > 0
+          ? await saveRows(
+              supabase,
+              effectiveMapping.datasetKey,
+              effectiveMapping.layout,
+              rowsWithUploadId,
+              user?.id ?? null,
+              enteredByName,
+              enteredByShift
+            )
+          : {
+              total: rowsWithUploadId.length,
+              saved: 0,
+              failed: 0,
+              errors: [],
+            }
+
+      totalSaved += summary.saved
+      totalFailed += summary.failed
+      totalValidRows += preview.validRows.length
+      totalInvalidRows += preview.invalidRowCount
+      totalWarningRows += preview.warningRowCount
+      errorMessages.push(...summary.errors.slice(0, 10).map((item) => item.message))
+
+      const finalUpload = await upsertImportUploadRecord(supabase, {
+        dataset_key: effectiveMapping.datasetKey,
+        sheet_name: sheet.sheetName,
+        file_name: fileValue.name,
+        storage_bucket: attachment.bucket,
+        storage_path: attachment.path,
+        file_hash: attachment.fileHash,
+        file_size: attachment.fileSize,
+        layout: effectiveMapping.layout,
+        row_count: preview.rows.length,
+        saved_count: summary.saved,
+        failed_count: preview.invalidRowCount + summary.failed,
+        warning_count: preview.warningRowCount,
+        template_name: templateName,
+        mapping_json: serializeImportMapping(effectiveMapping, sheet),
+        summary_json: {
+          status: summary.failed > 0 && summary.saved === 0 ? 'failed' : 'parsed',
+          previewSummary: `${summary.saved} saved / ${summary.failed} failed`,
+          validRows: preview.validRows.length,
+          invalidRows: preview.invalidRowCount,
+          warningRows: preview.warningRowCount,
+          rowCount: preview.rows.length,
+          fileHash: attachment.fileHash,
+          sheetConfidence: sheet.confidence,
+          sourceUploadId: storedUpload.id,
+        },
+        status: summary.failed > 0 && summary.saved === 0 ? 'failed' : 'parsed',
+        template_id: null,
+        parsed_at: new Date().toISOString(),
+        error_message: summary.errors[0]?.message ?? null,
+        created_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+
+      uploadResults.push({ summary, upload: finalUpload })
+    }
+
+    const summary: ImportSaveSummary = {
+      total: totalValidRows,
+      saved: totalSaved,
+      failed: totalFailed + totalInvalidRows,
+      errors: errorMessages.slice(0, 10).map((message, index) => ({
+        rowIndex: index,
+        message,
+      })),
+    }
 
     return NextResponse.json({
       summary,
-      upload: uploadRecord,
-      sheetName: requestedSheet.sheetName,
+      upload: uploadResults[0]?.upload ?? null,
+      uploads: uploadResults.map((item) => item.upload),
+      sheetName: sheetQueue.map((item) => item.sheetName),
     })
   } catch (error) {
     return NextResponse.json(

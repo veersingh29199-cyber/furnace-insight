@@ -4,6 +4,8 @@ import type {
   GasCompanyMonthlyImportRow,
   GasDailyImportRow,
   GasMonthlyImportRow,
+  LineOutputDailyImportRow,
+  LineOutputMonthlyImportRow,
   RawMaterialSpecImportRow,
   TargetImportRow,
   ProductionImportRow,
@@ -49,6 +51,7 @@ export async function saveGasDailyImports(
     created_by: meta.userId,
     entered_by_name: meta.enteredByName,
     entered_by_shift: meta.enteredByShift,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.gasDailyReadings, payload, DB_CONFLICT_KEYS.gasDailyReadings)
@@ -79,6 +82,7 @@ export async function saveGasMonthlyImports(
     created_by: meta.userId,
     entered_by_name: meta.enteredByName,
     entered_by_shift: meta.enteredByShift,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.gasRecords, payload, DB_CONFLICT_KEYS.gasRecords)
@@ -119,6 +123,7 @@ export async function saveProductionImports(
     created_by: meta.userId,
     updated_by: meta.userId,
     entered_by_shift: meta.enteredByShift,
+    source_upload_id: row.source_upload_id ?? null,
     updated_at: new Date().toISOString(),
   }))
 
@@ -144,6 +149,7 @@ export async function saveGasCompanyMonthlyImports(
     charge_weight_kg: row.charge_weight_kg,
     gas_usage: row.gas_usage,
     created_by: meta.userId,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.gasCompanyMonthly, payload, DB_CONFLICT_KEYS.gasCompanyMonthly)
@@ -170,6 +176,7 @@ export async function saveTargetImports(
     metric: row.metric,
     target_value: row.target_value,
     note: row.note ?? null,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.targets, payload, DB_CONFLICT_KEYS.targets)
@@ -198,6 +205,7 @@ export async function saveWorkStandardImports(
     order_size: row.order_size,
     std_work_count: row.std_work_count,
     note: row.note ?? null,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.workStandards, payload, DB_CONFLICT_KEYS.workStandards)
@@ -222,9 +230,76 @@ export async function saveRawMaterialSpecImports(
     raw_material: row.raw_material,
     spec: row.spec,
     note: row.note ?? null,
+    source_upload_id: row.source_upload_id ?? null,
   }))
 
   const { error } = await upsertBatch(supabase, DB.tables.rawMaterialSpecs, payload, DB_CONFLICT_KEYS.rawMaterialSpecs)
+  if (error) {
+    summary.failed = rows.length
+    summary.errors.push({ rowIndex: 0, message: error.message })
+    return summary
+  }
+
+  summary.saved = rows.length
+  return summary
+}
+
+export async function saveLineOutputImports(
+  supabase: SupabaseClient,
+  rows: Array<LineOutputDailyImportRow | LineOutputMonthlyImportRow>,
+  meta: { userId: string | null },
+  layout: 'line-output-daily' | 'line-output-monthly'
+): Promise<ImportSaveSummary> {
+  const summary = emptySummary(rows.length)
+  const isMonthly = layout === 'line-output-monthly'
+  const table = isMonthly ? DB.tables.lineOutputMonthly : DB.tables.lineOutputDaily
+  const conflictKey = isMonthly ? DB_CONFLICT_KEYS.lineOutputMonthly : DB_CONFLICT_KEYS.lineOutputDaily
+
+  const payload: Array<Record<string, unknown>> = isMonthly
+    ? (rows as LineOutputMonthlyImportRow[]).map((row) => ({
+        ym: row.ym,
+        line_code: row.line_code,
+        line_label: row.line_label ?? null,
+        plan_ton: row.plan_ton,
+        actual_ton: row.actual_ton,
+        achievement_pct: row.achievement_pct,
+        hwangji_ton: row.hwangji_ton,
+        cogging_ton: row.cogging_ton,
+        rework_self_ton: row.rework_self_ton,
+        rework_quality_ton: row.rework_quality_ton,
+        cs_ton: row.cs_ton,
+        as_ton: row.as_ton,
+        sus_ton: row.sus_ton,
+        total_ton: row.total_ton,
+        work_count: row.work_count,
+        note: row.note ?? null,
+        source_upload_id: row.source_upload_id ?? null,
+        created_by: meta.userId,
+        updated_at: new Date().toISOString(),
+      }))
+    : (rows as LineOutputDailyImportRow[]).map((row) => ({
+        work_date: row.work_date,
+        line_code: row.line_code,
+        line_label: row.line_label ?? null,
+        plan_ton: row.plan_ton,
+        actual_ton: row.actual_ton,
+        achievement_pct: row.achievement_pct,
+        hwangji_ton: row.hwangji_ton,
+        cogging_ton: row.cogging_ton,
+        rework_self_ton: row.rework_self_ton,
+        rework_quality_ton: row.rework_quality_ton,
+        cs_ton: row.cs_ton,
+        as_ton: row.as_ton,
+        sus_ton: row.sus_ton,
+        total_ton: row.total_ton,
+        work_count: row.work_count,
+        note: row.note ?? null,
+        source_upload_id: row.source_upload_id ?? null,
+        created_by: meta.userId,
+        updated_at: new Date().toISOString(),
+      }))
+
+  const { error } = await upsertBatch(supabase, table, payload, conflictKey)
   if (error) {
     summary.failed = rows.length
     summary.errors.push({ rowIndex: 0, message: error.message })

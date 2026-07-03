@@ -13,6 +13,7 @@ import {
   saveGasCompanyMonthlyImports,
   saveGasDailyImports,
   saveGasMonthlyImports,
+  saveLineOutputImports,
   saveRawMaterialSpecImports,
   saveTargetImports,
   saveProductionImports,
@@ -33,6 +34,8 @@ import type {
   ImportSheetAnalysis,
   ImportTemplateRecord,
   ImportUploadRecord,
+  LineOutputDailyImportRow,
+  LineOutputMonthlyImportRow,
   RawMaterialSpecImportRow,
   TargetImportRow,
   ProductionImportRow,
@@ -62,6 +65,8 @@ type ImportPreviewRowAny =
   | ImportPreviewRow<GasMonthlyImportRow>
   | ImportPreviewRow<ProductionImportRow>
   | ImportPreviewRow<GasCompanyMonthlyImportRow>
+  | ImportPreviewRow<LineOutputDailyImportRow>
+  | ImportPreviewRow<LineOutputMonthlyImportRow>
   | ImportPreviewRow<TargetImportRow>
   | ImportPreviewRow<WorkStandardImportRow>
   | ImportPreviewRow<RawMaterialSpecImportRow>
@@ -74,6 +79,7 @@ const DATASET_TABS: ImportDatasetKey[] = [
   'targets',
   'raw-material-specs',
   'gas-company-monthly',
+  'line-output',
 ]
 
 function mergeMapping(base: ImportMappingState, patch: Partial<ImportMappingState>): ImportMappingState {
@@ -111,6 +117,8 @@ function datasetTone(datasetKey: ImportDatasetKey) {
       return 'border-lime-500/20 bg-lime-500/10 text-lime-700 dark:text-lime-300'
     case 'gas-company-monthly':
       return 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+    case 'line-output':
+      return 'border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300'
     default:
       return 'border-border bg-muted/20 text-foreground'
   }
@@ -130,6 +138,8 @@ const LAYOUT_LABELS: Partial<Record<ImportLayout, string>> = {
 
 function layoutLabel(layout: ImportLayout | null | undefined) {
   if (!layout) return '미설정'
+  if (layout === 'line-output-daily') return '생산량집계표 일일'
+  if (layout === 'line-output-monthly') return '생산량집계표 월별'
   return LAYOUT_LABELS[layout] ?? layout
 }
 
@@ -140,7 +150,9 @@ function isWideLayout(layout: ImportLayout | null | undefined) {
     layout === 'gas-charge-daily-wide' ||
     layout === 'production-wide' ||
     layout === 'production-summary' ||
-    layout === 'company-wide'
+    layout === 'company-wide' ||
+    layout === 'line-output-daily' ||
+    layout === 'line-output-monthly'
   )
 }
 
@@ -155,6 +167,36 @@ function getVisibleFieldKeys(spec: ImportDatasetSpec, layout: ImportLayout) {
 }
 
 function getPreviewColumns(spec: ImportDatasetSpec, layout: ImportLayout) {
+  if (spec.key === 'line-output') {
+    return layout === 'line-output-monthly'
+      ? [
+          { key: 'ym', label: '월' },
+          { key: 'line_code', label: '라인/호기' },
+          { key: 'line_label', label: '원본 라벨' },
+          { key: 'plan_ton', label: '계획', align: 'right' as const },
+          { key: 'actual_ton', label: '생산량', align: 'right' as const },
+          { key: 'achievement_pct', label: '달성률', align: 'right' as const, derived: true },
+          { key: 'hwangji_ton', label: '황지', align: 'right' as const },
+          { key: 'cogging_ton', label: 'COGGING', align: 'right' as const },
+          { key: 'total_ton', label: '합계', align: 'right' as const },
+          { key: 'work_count', label: '건수', align: 'right' as const },
+          { key: 'status', label: '검증' },
+        ]
+      : [
+          { key: 'work_date', label: '일자' },
+          { key: 'line_code', label: '라인/호기' },
+          { key: 'line_label', label: '원본 라벨' },
+          { key: 'plan_ton', label: '계획', align: 'right' as const },
+          { key: 'actual_ton', label: '생산량', align: 'right' as const },
+          { key: 'achievement_pct', label: '달성률', align: 'right' as const, derived: true },
+          { key: 'hwangji_ton', label: '황지', align: 'right' as const },
+          { key: 'cogging_ton', label: 'COGGING', align: 'right' as const },
+          { key: 'total_ton', label: '합계', align: 'right' as const },
+          { key: 'work_count', label: '건수', align: 'right' as const },
+          { key: 'status', label: '검증' },
+        ]
+  }
+
   if (spec.key === 'production' && layout === 'production-detail') {
     return [
       { key: 'work_month', label: '작업월' },
@@ -198,6 +240,10 @@ function renderPreviewValue(row: ImportPreviewRowAny, key: string) {
     const charge = Number(value.charge_weight_kg ?? 0)
     const gasUsage = Number(value.gas_usage ?? 0)
     return charge > 0 && gasUsage > 0 ? formatGasUnit(calcGasUnit(gasUsage, charge) ?? 0) : '-'
+  }
+  if (key === 'achievement_pct') {
+    const pct = Number(value.achievement_pct ?? 0)
+    return Number.isFinite(pct) ? formatPercent(pct) : '-'
   }
   if (key === 'ton_per_hour') {
     const actual = Number(value.actual_ton ?? 0)
@@ -518,6 +564,13 @@ export function ImportPanel({ preferredDatasetKey }: { preferredDatasetKey?: Imp
           enteredByName,
           enteredByShift,
         })
+      } else if (mapping.datasetKey === 'line-output') {
+        summary = await saveLineOutputImports(
+          supabase,
+          currentPreview.validRows as Array<LineOutputDailyImportRow | LineOutputMonthlyImportRow>,
+          { userId: user?.id ?? null },
+          mapping.layout === 'line-output-monthly' ? 'line-output-monthly' : 'line-output-daily'
+        )
       } else if (mapping.datasetKey === 'targets') {
         summary = await saveTargetImports(supabase, currentPreview.validRows as TargetImportRow[])
       } else if (mapping.datasetKey === 'work-standards') {
@@ -578,7 +631,7 @@ export function ImportPanel({ preferredDatasetKey }: { preferredDatasetKey?: Imp
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; summary?: ImportSaveSummary; upload?: ImportUploadRecord }
+        | { error?: string; summary?: ImportSaveSummary; upload?: ImportUploadRecord; uploads?: ImportUploadRecord[] }
         | null
 
       if (!response.ok) {
@@ -592,10 +645,11 @@ export function ImportPanel({ preferredDatasetKey }: { preferredDatasetKey?: Imp
         errors: [],
       }
 
-      if (payload?.upload) {
+      const uploadedRecords = payload?.uploads ?? (payload?.upload ? [payload.upload] : [])
+      if (uploadedRecords.length > 0) {
         queryClient.setQueryData<ImportUploadRecord[]>(['import-uploads'], (current = []) => {
-          const next = [payload.upload!, ...current.filter((item) => item.id !== payload.upload!.id)]
-          return next.slice(0, 5)
+          const merged = [...uploadedRecords, ...current.filter((item) => !uploadedRecords.some((next) => next.id === item.id))]
+          return merged.slice(0, 5)
         })
       }
 

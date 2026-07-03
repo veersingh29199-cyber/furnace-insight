@@ -36,15 +36,15 @@ export default function DashboardPage() {
   const outlierIndices = detectOutliers(gasUnits)
   const outlierFurnaces = thisMonthGas
     .filter((_, i) => outlierIndices.has(i))
-    .map(r => r.furnace?.code ?? '-')
+    .map(r => r.furnace_code ?? '-')
 
   // 가열로별 월별 원단위 추이 데이터 가공
   const months = [...new Set(gasRecords?.map(r => normalizeMonthDate(r.ym)?.substring(0, 7) ?? r.ym.substring(0, 7)) ?? [])].sort()
-  const furnaceCodes = [...new Set(gasRecords?.map(r => r.furnace?.code ?? '') ?? [])].filter(Boolean).slice(0, 7)
+  const furnaceCodes = [...new Set(gasRecords?.map(r => r.furnace_code ?? '') ?? [])].filter(Boolean).slice(0, 7)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
     furnaceCodes.forEach(code => {
-      const rec = gasRecords?.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(m) && r.furnace?.code === code)
+      const rec = gasRecords?.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(m) && r.furnace_code === code)
       row[code] = rec?.gas_unit ?? null
     })
     return row

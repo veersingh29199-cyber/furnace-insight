@@ -50,6 +50,29 @@ function countFurnaceHeaderTokens(tokens: string[]) {
   return tokens.filter((token) => normalizeFurnaceCode(token) != null || /\d{1,2}호기/.test(token) || token.includes('호기')).length
 }
 
+function detectLineOutputShape(
+  sheetName: string,
+  fileToken: string,
+  sheetToken: string,
+  topTokens: string[]
+): { datasetKey: ImportDatasetKey; headerRowIndex: number; layout: ImportLayout; confidence: number } | null {
+  const looksLikeLineOutput =
+    fileToken.includes('outputtabulation') ||
+    fileToken.includes('생산량집계표') ||
+    sheetToken.includes('생산량집계표') ||
+    includesAny(topTokens, ['outputtabulation', '생산량집계표', '작업일자', '작업월'])
+
+  if (!looksLikeLineOutput) return null
+
+  const isMonthlySheet = /년\s*전체$/.test(sheetName) || includesAny(topTokens, ['작업월', '계획일'])
+  return {
+    datasetKey: 'line-output',
+    headerRowIndex: 6,
+    layout: isMonthlySheet ? 'line-output-monthly' : 'line-output-daily',
+    confidence: 100,
+  }
+}
+
 function detectStructuredImportShape(
   sheetName: string,
   matrix: string[][],
@@ -62,6 +85,10 @@ function detectStructuredImportShape(
     tokens: rowTokens(row),
   }))
   const topTokens = topRows.flatMap((row) => row.tokens)
+  const looksLikeLineOutput = detectLineOutputShape(sheetName, fileToken, sheetToken, topTokens)
+  if (looksLikeLineOutput) {
+    return looksLikeLineOutput
+  }
 
   const looksLikeProductionSummary =
     (fileToken.includes('생산량집계표') || sheetToken.includes('생산량집계표') || includesAny(topTokens, ['outputtabulation'])) &&

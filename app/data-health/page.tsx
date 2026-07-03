@@ -67,7 +67,7 @@ export default function DataHealthPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('*, furnace:furnaces(code, name)')
+        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, created_by, created_at')
         .gte(DB.gasRecords.ym, `${currentYear}-01-01`)
         .lte(DB.gasRecords.ym, `${currentYear}-12-31`)
         .order(DB.gasRecords.ym, { ascending: false })
@@ -124,7 +124,7 @@ export default function DataHealthPage() {
         key: `gas-weight-${record.id}`,
         group: '가스 검침',
         period: record.ym,
-        subject: `${record.furnace?.code ?? record.furnace_code ?? '-'}`,
+        subject: `${record.furnace_code ?? '-'}`,
         message: '장입량이 비어 있어 원단위 계산이 불가능합니다.',
         severity: 'danger',
       })
@@ -135,7 +135,7 @@ export default function DataHealthPage() {
         key: `gas-unit-${record.id}`,
         group: '가스 검침',
         period: record.ym,
-        subject: `${record.furnace?.code ?? record.furnace_code ?? '-'}`,
+        subject: `${record.furnace_code ?? '-'}`,
         message: `가스원단위가 ${gasThreshold.toFixed(1)} Nm³/t를 초과했습니다.`,
         severity: 'warning',
       })

@@ -3,6 +3,7 @@ import { normalizeToken, parseIntNumber, parseLooseNumber, isTotalLikeHeader } f
 import { normalizeDateText, normalizeFurnaceCode, normalizeLineCode, normalizeMonthDate, normalizeShiftText, detectYearFromSheetName } from '@/lib/import/common'
 import { normalizeTargetMetricText, normalizeTargetScopeText, normalizeWorkBasisText } from '@/lib/import/common'
 import { buildFieldAliasMap, buildFurnaceLookup, buildLineLookup, buildProductLookup, findFieldByHeader } from '@/lib/import/aliases'
+import { parseLineOutputDailySheet, parseLineOutputMonthlySheet } from '@/lib/import/line-output'
 import {
   importGasCompanyMonthlyRowSchema,
   importGasDailyRowSchema,
@@ -25,6 +26,8 @@ import type {
   ImportPreviewContext,
   ImportPreviewRow,
   ImportSheetAnalysis,
+  LineOutputDailyImportRow,
+  LineOutputMonthlyImportRow,
   RawMaterialSpecImportRow,
   TargetImportRow,
   ProductionImportRow,
@@ -1451,6 +1454,12 @@ export function buildImportPreview(
     return mapping.layout === 'production-wide'
       ? parseProductionWide(sheet, mapping, context)
       : parseProductionLong(sheet, mapping, context)
+  }
+
+  if (mapping.datasetKey === 'line-output') {
+    return mapping.layout === 'line-output-monthly'
+      ? parseLineOutputMonthlySheet(sheet, context)
+      : parseLineOutputDailySheet(sheet, context)
   }
 
   if (mapping.datasetKey === 'gas-company-monthly') {

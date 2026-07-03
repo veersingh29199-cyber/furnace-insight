@@ -10,6 +10,7 @@ export type ImportDatasetKey =
   | 'gas-monthly'
   | 'production'
   | 'gas-company-monthly'
+  | 'line-output'
   | 'work-standards'
   | 'targets'
   | 'raw-material-specs'
@@ -24,6 +25,8 @@ export type ImportLayout =
   | 'production-summary'
   | 'production-daily'
   | 'company-wide'
+  | 'line-output-daily'
+  | 'line-output-monthly'
 
 export interface Profile {
   id: string
@@ -82,6 +85,7 @@ export interface ProductionRecord {
   created_by?: string | null
   updated_by?: string | null
   entered_by_shift?: string | null
+  source_upload_id?: string | null
   // Legacy fields retained for compatibility with older records and screens.
   work_month?: string | null
   line_code?: string | null
@@ -107,6 +111,7 @@ export interface GasRecord {
   gas_unit: number | null
   source: GasSource
   note: string | null
+  source_upload_id?: string | null
   created_by: string
   created_at: string
   furnace?: Furnace
@@ -119,6 +124,7 @@ export interface GasDailyReading {
   shift: Shift | null
   order_no?: string | null
   value: number
+  source_upload_id?: string | null
   created_by: string
   furnace?: Furnace
 }
@@ -128,8 +134,57 @@ export interface GasCompanyMonthly {
   ym: string
   charge_weight_kg: number
   gas_usage: number
+  source_upload_id?: string | null
   created_by: string | null
   created_at: string
+}
+
+export interface LineOutputDaily {
+  id: string
+  work_date: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note: string | null
+  source_upload_id?: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface LineOutputMonthly {
+  id: string
+  ym: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note: string | null
+  source_upload_id?: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
 }
 
 export interface Target {
@@ -141,6 +196,7 @@ export interface Target {
   metric: TargetMetric
   target_value: number
   note: string | null
+  source_upload_id?: string | null
 }
 
 export interface Benchmark {
@@ -162,6 +218,7 @@ export interface WorkStandard {
   order_size: string | null
   std_work_count: number
   note: string | null
+  source_upload_id?: string | null
 }
 
 export interface RawMaterialSpec {
@@ -171,6 +228,7 @@ export interface RawMaterialSpec {
   raw_material: string
   spec: string
   note: string | null
+  source_upload_id?: string | null
 }
 
 export interface AppSetting {
@@ -239,14 +297,18 @@ export interface ImportUpload {
   storage_path: string
   file_hash: string
   file_size: number
+  status: 'stored' | 'parsed' | 'failed' | 'reprocessing'
   layout: ImportLayout
   row_count: number
   saved_count: number
   failed_count: number
   warning_count: number
+  template_id: string | null
   template_name: string | null
   mapping_json: Record<string, unknown>
   summary_json: Record<string, unknown>
+  parsed_at?: string | null
+  error_message?: string | null
   created_by: string | null
   created_at: string
   updated_at: string | null

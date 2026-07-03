@@ -123,7 +123,7 @@ export default function ReportsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('*, furnace:furnaces(code, name)')
+        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, created_by, created_at')
         .gte(DB.gasRecords.ym, `${selectedYear}-01-01`)
         .lte(DB.gasRecords.ym, `${selectedYear}-12-31`)
 
@@ -258,7 +258,7 @@ export default function ReportsPage() {
 
     const furnaceBuckets = new Map<string, { furnaceCode: string; usage: number; weightKg: number }>()
     for (const record of gasRecords) {
-      const furnaceCode = record.furnace_code || record.furnace?.code || '미상'
+      const furnaceCode = record.furnace_code || '미상'
       const bucket = furnaceBuckets.get(furnaceCode) ?? { furnaceCode, usage: 0, weightKg: 0 }
       bucket.usage += safeNumber(record.gas_usage)
       bucket.weightKg += safeNumber(record.charge_weight_kg)

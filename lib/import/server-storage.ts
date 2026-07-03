@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 import type { ImportDatasetKey, ImportUploadRecord } from '@/types/import'
@@ -27,21 +27,30 @@ function sanitizeStorageSegment(value: string) {
   )
 }
 
-function buildStoragePath(datasetKey: ImportDatasetKey, sheetName: string, fileName: string) {
+function sanitizeOriginalFileName(fileName: string) {
+  const normalized = fileName.normalize('NFKD').replace(/[\\/]+/g, '_').trim()
+  return normalized || 'file'
+}
+
+function buildStoragePath(datasetKey: ImportDatasetKey, fileName: string) {
+  const now = new Date()
+  const year = String(now.getFullYear())
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const prefix = randomUUID()
   return [
     sanitizeStorageSegment(datasetKey),
-    sanitizeStorageSegment(sheetName),
-    sanitizeStorageSegment(fileName),
+    year,
+    month,
+    `${prefix}_${sanitizeOriginalFileName(fileName)}`,
   ].join('/')
 }
 
 export function buildImportAttachmentInfo(
   datasetKey: ImportDatasetKey,
-  sheetName: string,
   fileName: string,
   fileHash?: string
 ) {
-  const path = buildStoragePath(datasetKey, sheetName, fileName)
+  const path = buildStoragePath(datasetKey, fileName)
   return {
     bucket: IMPORT_ATTACHMENT_BUCKET,
     fileHash: fileHash ?? '',
@@ -52,13 +61,12 @@ export function buildImportAttachmentInfo(
 export async function uploadImportAttachment(
   supabase: SupabaseClient,
   file: File,
-  datasetKey: ImportDatasetKey,
-  sheetName: string
+  datasetKey: ImportDatasetKey
 ): Promise<ImportAttachmentResult> {
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
   const fileHash = createHash('sha256').update(buffer).digest('hex')
-  const path = buildStoragePath(datasetKey, sheetName, file.name)
+  const path = buildStoragePath(datasetKey, file.name)
   const { error } = await supabase.storage.from(IMPORT_ATTACHMENT_BUCKET).upload(path, new Blob([buffer], {
     type: file.type || 'application/octet-stream',
   }), {

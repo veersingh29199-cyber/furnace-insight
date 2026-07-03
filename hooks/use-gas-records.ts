@@ -26,7 +26,7 @@ export function useGasRecords(params?: {
       const ymTo = normalizeMonthDate(params?.ymTo)
       let query = supabase
         .from(DB.tables.gasRecords)
-        .select('*, furnace:furnaces(code, name)')
+        .select('id, ym, furnace_code, charge_weight_kg, gas_usage, gas_unit, source, note, order_no, source_upload_id, created_by, created_at')
         .order('ym', { ascending: false })
 
       if (ymFrom) query = query.gte('ym', ymFrom)
@@ -91,14 +91,14 @@ export function useGasStats(ym: string) {
       const month = normalizeMonthDate(ym) ?? ym
       const { data, error } = await supabase
         .from(DB.tables.gasRecords)
-        .select('gas_unit, furnace:furnaces(code, name)')
+        .select('ym, gas_unit, furnace_code')
         .eq(DB.gasRecords.ym, month)
         .not('gas_unit', 'is', null)
 
       if (error) throw error
       return (data ?? []).map((row) => ({
         ...row,
-        ym: normalizeMonthDate((row as { ym?: string }).ym) ?? (row as { ym?: string }).ym,
+        ym: normalizeMonthDate(row.ym) ?? row.ym,
       }))
     },
   })
