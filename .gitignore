@@ -37,6 +37,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local browser / supabase temp artifacts
+Login Data
+Web Data
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
