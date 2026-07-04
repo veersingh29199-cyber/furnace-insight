@@ -284,7 +284,6 @@ function guessLayout(datasetKey: ImportDatasetKey | null, matrix: string[][], he
   const hasMonthHeader = headerTokens.some((token) => normalizeMonthDate(token, detectYearFromSheetName(header.join(' '))) != null || /\b\d{1,2}월\b/.test(token))
   const hasDateHeader = headerTokens.some((token) => token.includes('일자') || token.includes('날짜') || token.includes('작업일') || token === 'date')
   const hasPlanActual = headerTokens.some((token) => token.includes('계획') || token.includes('plan')) && headerTokens.some((token) => token.includes('실적') || token.includes('actual'))
-  const hasProductionDetailHeaders = headerTokens.some((token) => token.includes('생산중량') || token.includes('수주번호') || token.includes('프레스별') || token.includes('작업조'))
   const hasProductionSummaryHeaders = headerTokens.some((token) => token.includes('달성률') || token.includes('계획량')) && !hasLineHeader && !hasFurnaceHeader
   const hasDailyChargeHeaders = headerTokens.some((token) => token.includes('주/야구분') || token.includes('주간조') || token.includes('야간조'))
 
@@ -299,7 +298,7 @@ function guessLayout(datasetKey: ImportDatasetKey | null, matrix: string[][], he
   }
 
   if (datasetKey === 'production') {
-    if (hasProductionDetailHeaders || (hasDateHeader && hasLineHeader && headerTokens.some((token) => token.includes('생산중량')))) return 'production-detail'
+    if (headerTokens.some((token) => token.includes('생산중량') || token.includes('생산중량(양품)') || token.includes('단조작업일') || token.includes('프레스별') || token.includes('작업장'))) return 'production-detail'
     if (hasProductionSummaryHeaders && hasMonthHeader) return 'production-summary'
     if (hasLineHeader && hasMonthHeader && !hasPlanActual) return 'production-wide'
     return 'long'

@@ -608,6 +608,7 @@ function parseProductionLong(
   const autoFieldIndexMap = buildAutoFieldIndexMap(headerRow, context.master.aliases)
   const lineLookup = buildLineLookup(context.master.lines as Line[], context.master.aliases)
   const productLookup = buildProductLookup(context.master.products as Product[], context.master.aliases)
+  const furnaceLookup = buildFurnaceLookup(context.master.furnaces as Furnace[], context.master.aliases)
   const rows: ImportPreviewRow<ProductionImportRow>[] = []
   const baseYm = getMonthYearFallback(sheet, mapping)
 
@@ -615,68 +616,87 @@ function parseProductionLong(
     const rowIndex = (sheet.headerRowIndex ?? -1) + index + 2
     if (!rowHasAnyData(raw) || shouldSkipRow(raw)) return
 
-    const workMonthText = resolveFieldText(raw, 'work_month', mapping, autoFieldIndexMap) || resolveFieldText(raw, 'ym', mapping, autoFieldIndexMap)
-    const lineText = resolveFieldText(raw, 'line_code', mapping, autoFieldIndexMap)
-    const productText = resolveFieldText(raw, 'product_name', mapping, autoFieldIndexMap)
-    const shiftText = resolveFieldText(raw, 'shift', mapping, autoFieldIndexMap)
-    const planText = resolveFieldText(raw, 'plan_ton', mapping, autoFieldIndexMap)
-    const actualText = resolveFieldText(raw, 'actual_ton', mapping, autoFieldIndexMap)
-    const hwangjiText = resolveFieldText(raw, 'hwangji_ton', mapping, autoFieldIndexMap)
-    const coggingText = resolveFieldText(raw, 'cogging_ton', mapping, autoFieldIndexMap)
-    const workHoursText = resolveFieldText(raw, 'work_hours', mapping, autoFieldIndexMap)
-    const workCountText = resolveFieldText(raw, 'work_count', mapping, autoFieldIndexMap)
-    const orderNo = resolveFieldText(raw, 'order_no', mapping, autoFieldIndexMap)
-    const note = resolveFieldText(raw, 'note', mapping, autoFieldIndexMap)
+    const workDateText =
+      readDetailFieldText(raw, headerRow, mapping, 'work_date', ['작업일', '일자', '날짜']) ||
+      resolveFieldText(raw, 'work_date', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'date', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'work_month', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'ym', mapping, autoFieldIndexMap)
+    const lineText =
+      readDetailFieldText(raw, headerRow, mapping, 'dept_line', ['작업부서', '작업장', '라인']) ||
+      resolveFieldText(raw, 'dept_line', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'dept', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'line_code', mapping, autoFieldIndexMap)
+    const productText =
+      readDetailFieldText(raw, headerRow, mapping, 'product_name', ['제품']) ||
+      resolveFieldText(raw, 'product_name', mapping, autoFieldIndexMap) ||
+      resolveFieldText(raw, 'product', mapping, autoFieldIndexMap)
+    const shiftText = readDetailFieldText(raw, headerRow, mapping, 'shift', ['작업조', '주야', '주간조', '야간조', '주간', '야간']) || resolveFieldText(raw, 'shift', mapping, autoFieldIndexMap)
+    const orderNo = readDetailFieldText(raw, headerRow, mapping, 'order_no', ['수주번호']) || resolveFieldText(raw, 'order_no', mapping, autoFieldIndexMap)
+    const processText = readDetailFieldText(raw, headerRow, mapping, 'process', ['공정']) || resolveFieldText(raw, 'process', mapping, autoFieldIndexMap)
+    const orderSizeText = readDetailFieldText(raw, headerRow, mapping, 'order_size', ['수주치수']) || resolveFieldText(raw, 'order_size', mapping, autoFieldIndexMap)
+    const workSizeText = readDetailFieldText(raw, headerRow, mapping, 'work_size', ['작업치수']) || resolveFieldText(raw, 'work_size', mapping, autoFieldIndexMap)
+    const orderWeightText = readDetailFieldText(raw, headerRow, mapping, 'order_weight', ['수주중량']) || resolveFieldText(raw, 'order_weight', mapping, autoFieldIndexMap)
+    const chargeWeightText = readDetailFieldText(raw, headerRow, mapping, 'charge_weight', ['투입중량']) || resolveFieldText(raw, 'charge_weight', mapping, autoFieldIndexMap)
+    const furnaceText = readDetailFieldText(raw, headerRow, mapping, 'furnace_code', ['가열로', '호기']) || resolveFieldText(raw, 'furnace_code', mapping, autoFieldIndexMap)
+    const workHoursText = readDetailFieldText(raw, headerRow, mapping, 'work_hours', ['작업시간', '시간']) || resolveFieldText(raw, 'work_hours', mapping, autoFieldIndexMap)
+    const workCountText = readDetailFieldText(raw, headerRow, mapping, 'work_count', ['작업횟수', '실적']) || resolveFieldText(raw, 'work_count', mapping, autoFieldIndexMap)
+    const note = readDetailFieldText(raw, headerRow, mapping, 'note', ['비고', '메모']) || resolveFieldText(raw, 'note', mapping, autoFieldIndexMap)
 
     const errors: string[] = []
     const warnings: string[] = []
 
-    const workMonth = normalizeMonthDate(workMonthText, baseYm ? Number(baseYm.slice(0, 4)) : detectYearFromSheetName(sheet.sheetName))
+    const workDate = normalizeDateText(workDateText, baseYm ? `${baseYm}-01` : null)
     const line = lineLookup.get(normalizeToken(lineText)) ?? null
     const product = productText ? productLookup.get(normalizeToken(productText)) ?? null : null
+    const furnace = furnaceLookup.get(normalizeToken(furnaceText)) ?? null
     const shift = normalizeShiftText(shiftText)
-    const planTon = parseLooseNumber(planText)
-    const actualTon = parseLooseNumber(actualText)
-    const hwangjiTon = parseLooseNumber(hwangjiText) ?? 0
-    const coggingTon = parseLooseNumber(coggingText) ?? 0
+    const orderWeight = parseLooseNumber(orderWeightText)
+    const chargeWeight = parseLooseNumber(chargeWeightText)
     const workHours = parseLooseNumber(workHoursText)
     const workCount = parseIntNumber(workCountText)
 
-    if (!workMonth) errors.push('작업월을 찾지 못했습니다.')
-    if (!lineText && !line) errors.push('라인을 찾지 못했습니다.')
-    if (lineText && !line) errors.push(`라인 "${lineText}"을 찾지 못했습니다.`)
-    if (planTon == null) errors.push('계획 값을 입력해 주세요.')
-    if (actualTon == null) errors.push('실적 값을 입력해 주세요.')
+    if (!workDate) errors.push('작업일을 찾지 못했습니다.')
+    if (!lineText) errors.push('작업부서를 찾지 못했습니다.')
+    if (!furnaceText) errors.push('가열로를 찾지 못했습니다.')
+    if (orderWeight == null) errors.push('수주중량을 입력해 주세요.')
+    if (chargeWeight == null) errors.push('투입중량을 입력해 주세요.')
     if (workHours == null) errors.push('작업시간을 입력해 주세요.')
     if (workCount == null) errors.push('작업횟수를 입력해 주세요.')
-    if (productText && !product) errors.push(`제품 "${productText}"을 찾지 못했습니다.`)
+    if (!processText.trim()) errors.push('공정을 입력해 주세요.')
+
+    const normalizedOrderNo = orderNo.trim()
+    const normalizedProcess = processText.trim() || '기본'
+    const normalizedMaterial = resolveFieldText(raw, 'material', mapping, autoFieldIndexMap).trim()
+    const normalizedOrderSize = orderSizeText.trim()
+    const normalizedWorkSize = workSizeText.trim()
 
     const record: ProductionImportRow = {
-      work_date: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      work_date: workDate ?? (baseYm ? `${baseYm}-01` : ''),
       dept_line: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       shift,
-      order_no: orderNo || null,
+      order_no: normalizedOrderNo || null,
       product: (product?.name ?? productText) || null,
-      material: null,
-      process: resolveFieldText(raw, 'process', mapping, autoFieldIndexMap) || '기본',
-      order_size: null,
-      work_size: null,
-      order_weight: actualTon ?? planTon ?? 0,
-      charge_weight: hwangjiTon + coggingTon,
-      furnace_code: '',
+      material: normalizedMaterial || null,
+      process: normalizedProcess,
+      order_size: normalizedOrderSize || null,
+      work_size: normalizedWorkSize || null,
+      order_weight: orderWeight ?? 0,
+      charge_weight: chargeWeight ?? 0,
+      furnace_code: furnace?.code ?? normalizeFurnaceCode(furnaceText) ?? furnaceText,
       work_hours: workHours ?? 0,
       work_count: workCount ?? 0,
       ton_per_hour: null,
       ton_per_run: null,
       entered_by_name: null,
       note: note || null,
-      work_month: workMonth ?? (baseYm ? `${baseYm}-01` : ''),
+      work_month: workDate ? `${workDate.slice(0, 7)}-01` : (baseYm ? `${baseYm}-01` : ''),
       line_code: line?.code ?? normalizeLineCode(lineText) ?? lineText,
       product_name: (product?.name ?? productText) || null,
-      plan_ton: planTon ?? 0,
-      actual_ton: actualTon ?? 0,
-      hwangji_ton: hwangjiTon,
-      cogging_ton: coggingTon,
+      plan_ton: 0,
+      actual_ton: 0,
+      hwangji_ton: 0,
+      cogging_ton: 0,
       rework_self_ton: 0,
       rework_quality_ton: 0,
     }
@@ -685,16 +705,16 @@ function parseProductionLong(
     const normalizedRecord = validation.record as ProductionImportRow
     errors.push(...validation.errors)
 
-    if (normalizedRecord.plan_ton <= 0 && normalizedRecord.actual_ton <= 0) warnings.push('계획/실적이 0이라 저장 시 업서트만 수행됩니다.')
+    if (normalizedRecord.order_weight <= 0 && normalizedRecord.charge_weight <= 0) warnings.push('수주/투입중량이 0이라 저장만 수행됩니다.')
 
-    if (normalizedRecord.plan_ton > 0 && normalizedRecord.actual_ton > 0) {
-      const rate = calcAchievementRate(normalizedRecord.actual_ton, normalizedRecord.plan_ton)
-      if (rate != null && (rate < 40 || rate > 160)) warnings.push(`달성률 ${rate.toFixed(1)}%는 일반 범위를 벗어납니다.`)
+    if (normalizedRecord.order_weight > 0 && normalizedRecord.work_hours > 0) {
+      const tph = calcTonPerHour(normalizedRecord.order_weight, normalizedRecord.work_hours)
+      if (tph != null && (tph < 5 || tph > 40)) warnings.push(`TPH ${tph.toFixed(2)}는 일반 범위를 벗어납니다.`)
     }
 
-    if (normalizedRecord.actual_ton > 0 && normalizedRecord.work_hours > 0) {
-      const tph = calcTonPerHour(normalizedRecord.actual_ton, normalizedRecord.work_hours)
-      if (tph != null && (tph < 5 || tph > 40)) warnings.push(`TPH ${tph.toFixed(2)}는 일반 범위를 벗어납니다.`)
+    if (normalizedRecord.order_weight > 0 && normalizedRecord.work_count > 0) {
+      const perRun = normalizedRecord.order_weight / normalizedRecord.work_count
+      if (perRun < 1 || perRun > 20) warnings.push(`1회당 생산량 ${perRun.toFixed(2)}는 일반 범위를 벗어납니다.`)
     }
 
     rows.push(makeRowResult(rowIndex, raw, normalizedRecord, errors, warnings))
@@ -1079,7 +1099,6 @@ function parseProductionWide(
       if (!ym) errors.push('작업월을 찾지 못했습니다.')
       if (!line && !lineText) errors.push('라인을 찾지 못했습니다.')
       if (lineText && !line) errors.push(`라인 "${lineText}"을 찾지 못했습니다.`)
-      if (productText && !product) errors.push(`제품 "${productText}"을 찾지 못했습니다.`)
 
       const record: ProductionImportRow = existing?.record ?? {
         work_date: ym ? `${ym}-01` : '',

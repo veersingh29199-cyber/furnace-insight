@@ -61,7 +61,7 @@ export const IMPORT_DATASETS: Record<ImportDatasetKey, ImportDatasetSpec> = {
     description: '가열로별 월 검침량과 일별 장입/투입 파일을 월별 호기 데이터로 변환합니다.',
     table: DB.tables.gasRecords,
     conflictKey: DB_CONFLICT_KEYS.gasRecords,
-    defaultLayout: 'gas-monthly-wide',
+    defaultLayout: 'long',
     supportedLayouts: ['long', 'gas-monthly-wide', 'gas-charge-daily-wide'],
     fields: [
       { key: 'ym', label: '월', required: true, kind: 'date', preview: true },
@@ -87,7 +87,7 @@ export const IMPORT_DATASETS: Record<ImportDatasetKey, ImportDatasetSpec> = {
     description: '작업일·작업부서·수주번호·공정 기준의 일일 생산 실적을 저장합니다.',
     table: DB.tables.productionRecords,
     conflictKey: DB_CONFLICT_KEYS.productionRecords,
-    defaultLayout: 'production-daily',
+    defaultLayout: 'long',
     supportedLayouts: ['long', 'production-daily', 'production-detail', 'production-summary', 'production-wide'],
     fields: [
       { key: 'work_date', label: '작업일', required: true, kind: 'date', preview: true },
