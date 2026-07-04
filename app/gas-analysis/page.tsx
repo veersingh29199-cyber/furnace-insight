@@ -36,22 +36,24 @@ function getFurnaceCode(rec: unknown): string {
   return '-'
 }
 
-// 가열로 가스원단위 실질 산출/추정 (DB에 gas_unit이나 charge_weight_kg가 null인 경우 대응)
-function getEffectiveGasUnit(rec: unknown): number | null {
+// 가스원단위 = 가스사용량 / (투입중량kg / 1000)
+function getCalculatedGasUnit(rec: unknown): number | null {
   if (!rec || typeof rec !== 'object') return null
   const obj = rec as Record<string, unknown>
-  if (obj.gas_unit != null && Number(obj.gas_unit) > 0) return Number(obj.gas_unit)
   const usage = Number(obj.gas_usage || 0)
-  if (usage <= 0) return null
   const chargeKg = Number(obj.charge_weight_kg || 0)
-  if (chargeKg > 0) {
-    return Number((usage / (chargeKg / 1000)).toFixed(1))
-  }
-  // charge_weight_kg가 없을 경우 호기별 고유 효율 편차를 반영한 기준 장입량(약 360~395톤) 기반 산출
-  const codeStr = getFurnaceCode(rec)
-  const num = parseInt(codeStr.replace(/[^0-9]/g, '')) || 1
-  const baseWeightTon = 360 + (num % 6) * 7
-  return Number((usage / baseWeightTon).toFixed(1))
+  if (!Number.isFinite(usage) || !Number.isFinite(chargeKg) || usage <= 0 || chargeKg <= 0) return null
+  return usage / (chargeKg / 1000)
+}
+
+// 저장된 값이 있으면 우선 쓰되, 원시값이 있으면 공식으로 재계산한다.
+function getEffectiveGasUnit(rec: unknown): number | null {
+  const calculated = getCalculatedGasUnit(rec)
+  if (calculated != null) return calculated
+  if (!rec || typeof rec !== 'object') return null
+  const obj = rec as Record<string, unknown>
+  const stored = Number(obj.gas_unit || 0)
+  return Number.isFinite(stored) && stored > 0 ? stored : null
 }
 
 export default function GasAnalysisPage() {
@@ -129,8 +131,8 @@ export default function GasAnalysisPage() {
       const u = getEffectiveGasUnit(r) ?? 0
       const charge = Number(r.charge_weight_kg || 0)
       const cStr = getFurnaceCode(r)
-      const num = parseInt(cStr.replace(/[^0-9]/g, '')) || 1
-      const effWeightTon = charge > 0 ? (charge / 1000) : (360 + (num % 6) * 7)
+      const effWeightTon = charge > 0 ? (charge / 1000) : null
+      if (effWeightTon == null) return null
       return {
         x: effWeightTon,
         y: u,
@@ -139,6 +141,7 @@ export default function GasAnalysisPage() {
         isOutlier: outlierSet.has(i),
       }
     })
+    .filter((row): row is { x: number; y: number; code: string; ym: string; isOutlier: boolean } => row != null)
     .sort((a, b) => {
       const numA = parseInt(a.code.replace(/[^0-9]/g, '')) || 0
       const numB = parseInt(b.code.replace(/[^0-9]/g, '')) || 0
@@ -156,6 +159,23 @@ export default function GasAnalysisPage() {
       const ratio = (mixInputs[p.id] ?? 0) / mixTotal
       return sum + ratio * (p.std_gas_unit ?? 0)
     }, 0)
+  }, [products, mixInputs, mixTotal])
+  const mixBreakdown = useMemo(() => {
+    if (!products) return []
+    return products
+      .filter((p): p is typeof p & { std_gas_unit: number } => p.std_gas_unit != null)
+      .map((p) => {
+        const ratio = mixTotal > 0 ? (mixInputs[p.id] ?? 0) / mixTotal : 0
+        const contribution = ratio * p.std_gas_unit
+        return {
+          id: p.id,
+          name: p.name,
+          ratio,
+          stdGasUnit: p.std_gas_unit,
+          contribution,
+        }
+      })
+      .sort((a, b) => b.contribution - a.contribution)
   }, [products, mixInputs, mixTotal])
 
   // ── 태상 vs 태웅 비교 ──
@@ -196,7 +216,7 @@ export default function GasAnalysisPage() {
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription className="text-sm">
-          <strong>가스원단위</strong> = 가스사용량(Nm³) ÷ 장입중량(톤). 낮을수록 연료 효율이 좋습니다.
+          <strong>가스원단위</strong> = 가스사용량(Nm³) ÷ (투입중량(kg) / 1000). 낮을수록 연료 효율이 좋습니다.
           전사 목표: <strong>{gasTarget ?? 150} Nm³/톤</strong>
         </AlertDescription>
       </Alert>
@@ -453,6 +473,41 @@ export default function GasAnalysisPage() {
                 </div>
               </div>
             )}
+
+            <div className="rounded-lg border">
+              <div className="border-b px-3 py-2">
+                <p className="text-sm font-semibold">Product Mix 분해표</p>
+                <p className="text-xs text-muted-foreground">가중합 = Σ(투입 비중 × 제품 표준 원단위)</p>
+              </div>
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead>제품</TableHead>
+                    <TableHead className="text-right">비중</TableHead>
+                    <TableHead className="text-right">표준 원단위</TableHead>
+                    <TableHead className="text-right">기여도</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mixBreakdown.length > 0 ? (
+                    mixBreakdown.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell className="text-right">{(row.ratio * 100).toFixed(1)}%</TableCell>
+                        <TableCell className="text-right">{formatGasUnit(row.stdGasUnit)}</TableCell>
+                        <TableCell className="text-right">{formatGasUnit(row.contribution)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                        표준 원단위가 있는 제품이 없습니다.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
