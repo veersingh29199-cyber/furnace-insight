@@ -61,6 +61,27 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown error'
 }
 
+function addCanvasToPdf(pdf: jsPDF, canvas: HTMLCanvasElement) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const imageWidth = pageWidth
+  const imageHeight = (canvas.height * imageWidth) / canvas.width
+  const imageData = canvas.toDataURL('image/png')
+
+  let remainingHeight = imageHeight
+  let position = 0
+
+  pdf.addImage(imageData, 'PNG', 0, position, imageWidth, imageHeight)
+  remainingHeight -= pageHeight
+
+  while (remainingHeight > 0) {
+    position = remainingHeight - imageHeight
+    pdf.addPage()
+    pdf.addImage(imageData, 'PNG', 0, position, imageWidth, imageHeight)
+    remainingHeight -= pageHeight
+  }
+}
+
 export default function ReportsPage() {
   const [reportType, setReportType] = useState<'productivity' | 'gas'>('productivity')
   const [selectedYear, setSelectedYear] = useState<string>('2026')
@@ -375,24 +396,339 @@ export default function ReportsPage() {
 
   const handleDownloadPdfCanvas = async () => {
     if (!reportContainerRef.current) return
+    toast.info('브라우저 인쇄 대화상자에서 PDF로 저장하세요.')
+    setTimeout(() => window.print(), 0)
+    return
+    let exportRoot!: HTMLElement
+    let exportFrame!: HTMLIFrameElement
+    let exportDoc: Document = document
+
+    const applyStyles = (element: HTMLElement | HTMLIFrameElement | null, styles: Record<string, string>) => {
+      if (!element) return
+      for (const [key, value] of Object.entries(styles)) {
+        const cssProperty = key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)
+        element.style.setProperty(cssProperty, value)
+      }
+    }
+
+    const createElement = <K extends keyof HTMLElementTagNameMap>(
+      tag: K,
+      styles: Record<string, string> = {},
+      text?: string
+    ) => {
+      const element = document.createElement(tag)
+      applyStyles(element, styles)
+      if (text != null) {
+        element.textContent = text
+      }
+      return element
+    }
+
+    const createTable = (headers: string[], rows: string[][]) => {
+      const table = createElement('table', {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '12px',
+        color: '#111827',
+      })
+
+      const thead = document.createElement('thead')
+      const headerRow = document.createElement('tr')
+      headers.forEach((header) => {
+        const th = createElement('th', {
+          border: '1px solid #d1d5db',
+          backgroundColor: '#f8fafc',
+          padding: '10px 12px',
+          textAlign: 'left',
+          fontWeight: '700',
+        }, header)
+        headerRow.appendChild(th)
+      })
+      thead.appendChild(headerRow)
+
+      const tbody = document.createElement('tbody')
+      rows.forEach((row) => {
+        const tr = document.createElement('tr')
+        row.forEach((cell) => {
+          const td = createElement('td', {
+            border: '1px solid #d1d5db',
+            padding: '10px 12px',
+            verticalAlign: 'top',
+          }, cell)
+          tr.appendChild(td)
+        })
+        tbody.appendChild(tr)
+      })
+
+      table.appendChild(thead)
+      table.appendChild(tbody)
+      return table
+    }
+
+    const createSection = (title: string, subtitle?: string) => {
+      const section = createElement('section', {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      })
+
+      section.appendChild(createElement('h2', {
+        fontSize: '22px',
+        fontWeight: '700',
+        lineHeight: '1.2',
+        margin: '0',
+        color: '#0f172a',
+      }, title))
+
+      if (subtitle) {
+        section.appendChild(createElement('div', {
+          fontSize: '13px',
+          color: '#64748b',
+          margin: '0',
+        }, subtitle))
+      }
+
+      return section
+    }
+
+    const createMetricGrid = (items: Array<{ label: string; value: string; helper: string }>) => {
+      const grid = createElement('div', {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gap: '16px',
+      })
+
+      items.forEach((item) => {
+        const card = createElement('div', {
+          border: '1px solid #d1d5db',
+          borderRadius: '12px',
+          padding: '16px',
+          backgroundColor: '#ffffff',
+          minHeight: '96px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        })
+
+        card.appendChild(createElement('div', {
+          fontSize: '12px',
+          color: '#64748b',
+          marginBottom: '8px',
+        }, item.label))
+        card.appendChild(createElement('div', {
+          fontSize: '24px',
+          fontWeight: '700',
+          lineHeight: '1.1',
+          color: '#0f172a',
+          marginBottom: '8px',
+        }, item.value))
+        card.appendChild(createElement('div', {
+          fontSize: '12px',
+          color: '#64748b',
+        }, item.helper))
+
+        grid.appendChild(card)
+      })
+
+      return grid
+    }
+
+    const createCommentBox = (comments: string[]) => {
+      const box = createElement('div', {
+        border: '1px solid #d1d5db',
+        borderRadius: '12px',
+        padding: '20px',
+        backgroundColor: '#f8fafc',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+      })
+
+      box.appendChild(createElement('h3', {
+        fontSize: '14px',
+        fontWeight: '700',
+        margin: '0 0 4px 0',
+        color: '#0f172a',
+      }, '자동 요약'))
+
+      comments.forEach((comment, index) => {
+        box.appendChild(createElement('div', {
+          fontSize: '12px',
+          lineHeight: '1.5',
+          color: '#334155',
+          padding: '8px 0',
+          borderBottom: index === comments.length - 1 ? 'none' : '1px solid #e2e8f0',
+        }, `${index + 1}. ${comment}`))
+      })
+
+      return box
+    }
+
+    const createChartPanel = (source: HTMLElement | undefined, height = '260px') => {
+      const panel = createElement('div', {
+        border: '1px solid #d1d5db',
+        borderRadius: '12px',
+        padding: '16px',
+        backgroundColor: '#ffffff',
+        height,
+        overflow: 'hidden',
+      })
+
+      if (!source) {
+        panel.appendChild(createElement('div', {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: '#64748b',
+          fontSize: '13px',
+        }, '차트 데이터를 불러오지 못했습니다.'))
+        return panel
+      }
+
+      const chartClone = source.cloneNode(true) as HTMLElement
+      applyStyles(chartClone, {
+        width: '100%',
+        height: '100%',
+        display: 'block',
+      })
+      panel.appendChild(chartClone)
+      return panel
+    }
 
     try {
       setGeneratingPdf(true)
       toast.info('PDF를 생성 중입니다...')
 
-      const canvas = await html2canvas(reportContainerRef.current, { useCORS: true })
-      const imgData = canvas.toDataURL('image/png')
+      exportFrame = document.createElement('iframe')
+      applyStyles(exportFrame, {
+        position: 'fixed',
+        left: '-12000px',
+        top: '0',
+        width: '900px',
+        height: '2200px',
+        border: '0',
+        opacity: '1',
+        pointerEvents: 'none',
+      })
+      document.body.appendChild(exportFrame)
 
+      exportDoc = exportFrame.contentDocument ?? document.implementation.createHTMLDocument('')
+      exportDoc.open()
+      exportDoc.write('<!doctype html><html><head></head><body></body></html>')
+      exportDoc.close()
+
+      exportRoot = createElement('div', {
+        width: '900px',
+        boxSizing: 'border-box',
+        padding: '40px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '32px',
+        backgroundColor: '#ffffff',
+        color: '#111827',
+        fontFamily: 'Noto Sans KR, sans-serif',
+      })
+
+      const titleBlock = createElement('div', {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        paddingBottom: '24px',
+        borderBottom: '1px solid #d1d5db',
+      })
+      titleBlock.appendChild(createElement('div', {
+        display: 'inline-flex',
+        alignItems: 'center',
+        width: 'fit-content',
+        padding: '6px 12px',
+        border: '1px solid #cbd5e1',
+        borderRadius: '999px',
+        fontSize: '12px',
+        fontWeight: '700',
+        color: '#1d4ed8',
+        backgroundColor: '#eff6ff',
+      }, '가열로 인사이트 보고서'))
+      titleBlock.appendChild(createElement('h1', {
+        margin: '0',
+        fontSize: '28px',
+        fontWeight: '800',
+        lineHeight: '1.2',
+        color: '#0f172a',
+      }, reportType === 'productivity' ? '생산성 종합 보고서' : '가스원단위 종합 보고서'))
+      titleBlock.appendChild(createElement('div', {
+        fontSize: '13px',
+        color: '#64748b',
+      }, `분석 기간: ${selectedYear}년 | 생성 시각: ${new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)`))
+      exportRoot.appendChild(titleBlock)
+
+      exportRoot.appendChild(createCommentBox(selectedSummaryComments))
+
+      exportRoot.appendChild(createMetricGrid(reportType === 'productivity' ? productivitySummary : gasSummary))
+
+      const chartWrappers = Array.from(reportContainerRef.current!.querySelectorAll('.recharts-wrapper')) as HTMLElement[]
+
+      if (reportType === 'productivity') {
+        const lineSection = createSection('1. 라인별 목표 대비 실적', '목표 생산량과 실적 생산량 비교')
+        const lineTableRows = productivityStats.yearly.map((row) => [
+          row.lineName,
+          `${row.planTon.toLocaleString()} t`,
+          `${row.actualTon.toLocaleString()} t`,
+          `${row.achievePct.toFixed(1)}%`,
+        ])
+        const lineContent = createElement('div', {
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr',
+          gap: '16px',
+          alignItems: 'start',
+        })
+        lineContent.appendChild(createTable(['라인', '목표', '실적', '달성률'], lineTableRows))
+        lineContent.appendChild(createChartPanel(chartWrappers[0]))
+        lineSection.appendChild(lineContent)
+        exportRoot.appendChild(lineSection)
+
+        const benchmarkSection = createSection('2. 제품별 시간당 생산량 비교', '두산 기준값과 실측값 비교')
+        benchmarkSection.appendChild(createChartPanel(chartWrappers[1]))
+        exportRoot.appendChild(benchmarkSection)
+
+        const targetSection = createSection('3. 라인별 현실 목표 제안', '현재 평균 대비 115%와 회사 기준 중 높은 값을 제안')
+        const targetRows = productivityStats.realisticTargets.map((row) => [
+          row.lineCode,
+          `${row.currentAvg.toFixed(1)} t/h`,
+          `${row.benchmark.toFixed(1)} t/h`,
+          `${row.proposedTarget.toFixed(1)} t/h`,
+          row.reason,
+        ])
+        targetSection.appendChild(createTable(['라인', '현재 평균', '기준', '제안 목표', '설명'], targetRows))
+        exportRoot.appendChild(targetSection)
+      } else {
+        const monthlySection = createSection('1. 전사 월별 원단위 추이', '실적 원단위와 목표 원단위 비교')
+        monthlySection.appendChild(createChartPanel(chartWrappers[0]))
+        exportRoot.appendChild(monthlySection)
+
+        const furnaceSection = createSection('2. 호기별 평균 원단위', '가열로별 실적과 회사 기준 비교')
+        const furnaceRows = gasStats.furnaceStats.map((row) => [
+          furnaceNameMap.get(row.furnaceCode) ?? row.furnaceCode,
+          `${row.avgUnit.toFixed(1)}`,
+          `${row.targetUnit.toFixed(1)}`,
+          row.status,
+        ])
+        furnaceSection.appendChild(createTable(['호기', '평균 원단위', '기준', '상태'], furnaceRows))
+        exportRoot.appendChild(furnaceSection)
+      }
+
+      exportDoc.body.appendChild(exportRoot)
+      const canvas = await html2canvas(exportRoot, { useCORS: true, scale: 0.75 } as any)
+      exportRoot.remove()
       const pdf = new jsPDF('p', 'mm', 'a4')
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+      addCanvasToPdf(pdf, canvas)
       pdf.save(`가열로인사이트_${reportType === 'productivity' ? '생산성보고서' : '가스원단위보고서'}_${selectedYear}.pdf`)
       toast.success('PDF를 저장했습니다.')
     } catch (error: unknown) {
       toast.error(`PDF 생성 실패: ${getErrorMessage(error)}`)
     } finally {
+      exportRoot?.remove()
+      exportFrame?.remove()
       setGeneratingPdf(false)
     }
   }
@@ -497,6 +833,7 @@ export default function ReportsPage() {
 
       <div
         ref={reportContainerRef}
+        id="report-export-root"
         className="bg-card text-card-foreground border rounded-xl p-8 space-y-8 shadow-sm print:border-none print:shadow-none print:p-0"
       >
         <div className="border-b pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
