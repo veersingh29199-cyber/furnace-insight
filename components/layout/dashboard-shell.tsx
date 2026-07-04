@@ -15,7 +15,12 @@ export default function DashboardShell({ children, pageTitle, pageDesc }: Dashbo
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="relative flex min-h-dvh bg-background overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(245,158,11,0.06),transparent_30%)]"
+      />
+
       {/* 온보딩 투어 */}
       <OnboardingTour />
 
@@ -23,7 +28,7 @@ export default function DashboardShell({ children, pageTitle, pageDesc }: Dashbo
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* 메인 영역 */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+      <div className="relative z-10 flex flex-1 flex-col min-w-0 overflow-hidden">
         <Header
           onMenuClick={() => setSidebarOpen(true)}
           pageTitle={pageTitle}

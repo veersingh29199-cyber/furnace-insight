@@ -20,7 +20,7 @@ import { Info, AlertTriangle, Calculator, Flame, CheckCircle2 } from 'lucide-rea
 import {
   formatGasUnit, detectOutliers, cn
 } from '@/lib/utils'
-import { normalizeMonthDate } from '@/lib/input/common'
+import { currentMonthYm, normalizeMonthDate } from '@/lib/input/common'
 
 const supabase = createClient()
 
@@ -194,7 +194,7 @@ export default function GasAnalysisPage() {
   // ── 일일 검침 vs 월간 공식 검침 교차 대조 (최신 월 기준 19개 가동 호기 전체 순서대로) ──
   const dailyVsMonthly = useMemo(() => {
     if (!allGas || !activeFurnaceCodes.length) return []
-    const latestMonth = months[months.length - 1] || new Date().toISOString().substring(0, 7)
+    const latestMonth = months[months.length - 1] || currentMonthYm()
 
     return activeFurnaceCodes.map(furnaceCode => {
       const rec = allGas.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(latestMonth) && getFurnaceCode(r) === furnaceCode)

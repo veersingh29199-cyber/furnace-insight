@@ -102,6 +102,11 @@ export function currentMonthDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 }
 
+/** 현재 일자 (YYYY-MM-DD, 로컬 기준) */
+export function currentDateString(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 /** date 객체 → YYYY-MM-01 */
 export function toMonthDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`

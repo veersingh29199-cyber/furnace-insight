@@ -7,7 +7,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertCircle, ArrowRight, ClipboardList, Flame, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
-import { currentMonthDate } from '@/lib/utils'
+import { currentDateString, currentMonthDate } from '@/lib/utils'
 import { DB } from '@/types/db'
 
 const supabase = createClient()
@@ -15,7 +15,7 @@ const supabase = createClient()
 export function InputStatusCard() {
   const currentMonth = currentMonthDate()
   const currentYm = currentMonth.slice(0, 7) // 예: 2026-07
-  const todayDate = new Date().toISOString().slice(0, 10)
+  const todayDate = currentDateString()
   const lastDay = new Date(Number(currentYm.slice(0, 4)), Number(currentYm.slice(5, 7)), 0).getDate()
 
   // 1. 이번달 생산실적 확인
@@ -55,6 +55,9 @@ export function InputStatusCard() {
     },
   })
 
+  const enteredCount = [prodCount, gasCount, dailyCount].filter((count) => count > 0).length
+  const completionRate = (enteredCount / 3) * 100
+
   const statusItems = [
     {
       title: `${currentYm}월 생산 실적`,
@@ -85,8 +88,8 @@ export function InputStatusCard() {
   return (
     <Card className="border-primary/25 bg-gradient-to-r from-primary/5 via-card to-card shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-primary" />
               이번 달 현장 데이터 입력 현황 ({currentYm})
@@ -94,20 +97,34 @@ export function InputStatusCard() {
             <CardDescription className="text-xs mt-0.5">
               월 누락 없이 데이터를 입력해야 정확한 시간당 생산량 및 가스원단위가 계산됩니다.
             </CardDescription>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+                완료 {enteredCount}/3
+              </Badge>
+              <span className="text-[11px] text-muted-foreground">
+                오늘 {todayDate.slice(5)} 기준 입력 상태를 반영합니다.
+              </span>
+            </div>
           </div>
-          <Link href="/input" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'text-xs h-8 gap-1 hidden sm:flex' })}>
+          <Link href="/input" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'text-xs h-8 gap-1 self-start' })}>
             전체 입력화면 이동 <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 h-2 rounded-full bg-muted/70">
+          <div
+            className="h-2 rounded-full bg-primary transition-[width] duration-300"
+            style={{ width: `${completionRate}%` }}
+          />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {statusItems.map((item) => {
             const Icon = item.icon
             return (
               <div
                 key={item.tab}
-                className="flex items-center justify-between p-3 rounded-lg border bg-background/80 hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between gap-3 rounded-lg border bg-background/80 p-3 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-md ${item.isEntered ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'}`}>
@@ -136,6 +153,11 @@ export function InputStatusCard() {
               </div>
             )
           })}
+        </div>
+        <div className="mt-4 sm:hidden">
+          <Link href="/input" className={buttonVariants({ variant: 'outline', className: 'w-full gap-2' })}>
+            전체 입력화면 이동 <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </CardContent>
     </Card>

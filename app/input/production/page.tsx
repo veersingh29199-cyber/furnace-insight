@@ -52,6 +52,7 @@ import {
   calcTonPerHour,
   formatPercent,
   formatTonPerHour,
+  currentDateString,
 } from '@/lib/utils'
 import {
   getProductionAchievementRate,
@@ -83,7 +84,7 @@ type ProductionDraft = {
 }
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return currentDateString()
 }
 
 function monthBounds(ym: string) {

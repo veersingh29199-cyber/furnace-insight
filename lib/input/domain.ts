@@ -1,5 +1,6 @@
 import type { GasSource, Shift } from '@/types'
 import { createInputId, monthDateForDay, daysInMonth } from '@/lib/input/common'
+import { currentDateString } from '@/lib/utils'
 
 export interface ProductionGridRow {
   id: string
@@ -39,7 +40,7 @@ export interface DailyGasGridRow {
   [key: string]: string | number | null
 }
 
-export function createBlankProductionRow(workDate = new Date().toISOString().slice(0, 10)): ProductionGridRow {
+export function createBlankProductionRow(workDate = currentDateString()): ProductionGridRow {
   return {
     id: createInputId('production'),
     work_date: workDate,

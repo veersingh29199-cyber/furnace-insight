@@ -26,7 +26,9 @@ export async function proxy(request: NextRequest) {
   )
 
   // 세션 갱신 (이 호출은 절대 삭제하지 마세요)
-  await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
@@ -40,8 +42,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 로그인 화면이나 회원가입 화면에 접속해도 대시보드로 안내 (개방 모드 기본)
-  if (pathname === '/login' || pathname === '/signup') {
+  // 로그인/회원가입은 인증되지 않은 사용자가 실제로 들어갈 수 있게 둔다.
+  if ((pathname === '/login' || pathname === '/signup') && user) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/dashboard'
     return NextResponse.redirect(redirectUrl)

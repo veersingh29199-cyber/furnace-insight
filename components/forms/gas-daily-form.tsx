@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
+import { currentDateString } from '@/lib/utils'
 
 export default function GasDailyForm() {
   const { data: furnaces } = useFurnaces()
@@ -24,7 +25,7 @@ export default function GasDailyForm() {
     useForm<GasDailyReadingInput>({
       resolver: zodResolver(gasDailyReadingSchema) as unknown as Resolver<GasDailyReadingInput>,
       defaultValues: {
-        date:  new Date().toISOString().substring(0, 10),
+        date: currentDateString(),
         furnace_code: '',
         shift: 'day',
         order_no: '',

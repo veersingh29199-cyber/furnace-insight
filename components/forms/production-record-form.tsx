@@ -16,11 +16,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { calcTonPerHour, formatTonPerHour } from '@/lib/utils'
+import { calcTonPerHour, currentDateString, formatTonPerHour } from '@/lib/utils'
 import { DB } from '@/types/db'
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return currentDateString()
 }
 
 export default function ProductionRecordForm() {
