@@ -1,26 +1,39 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ClipboardList, LayoutDashboard, FileText, CheckCircle2, ArrowRight } from 'lucide-react'
 
+const ONBOARDING_CHANGE_EVENT = 'furnace-onboarding-change'
+
+function getOnboardingSnapshot() {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem('furnace_onboarding_done') !== 'true'
+}
+
+function subscribeOnboarding(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+
+  const handleChange = () => onStoreChange()
+  window.addEventListener('storage', handleChange)
+  window.addEventListener(ONBOARDING_CHANGE_EVENT, handleChange)
+
+  return () => {
+    window.removeEventListener('storage', handleChange)
+    window.removeEventListener(ONBOARDING_CHANGE_EVENT, handleChange)
+  }
+}
+
 export function OnboardingTour() {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
-
-  useEffect(() => {
-    const done = localStorage.getItem('furnace_onboarding_done')
-    if (!done) {
-      // 1초 후 온보딩 팝업
-      const t = setTimeout(() => setOpen(true), 1200)
-      return () => clearTimeout(t)
-    }
-  }, [])
+  const showLauncher = useSyncExternalStore(subscribeOnboarding, getOnboardingSnapshot, () => false)
 
   const handleFinish = () => {
     localStorage.setItem('furnace_onboarding_done', 'true')
+    window.dispatchEvent(new Event(ONBOARDING_CHANGE_EVENT))
     setOpen(false)
   }
 
@@ -52,52 +65,84 @@ export function OnboardingTour() {
   const Icon = current.icon
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { if (!val) handleFinish() }}>
-      <DialogContent className="sm:max-w-md border-primary/30 shadow-xl">
-        <DialogHeader>
-          <div className="flex items-center justify-between mb-1">
-            <Badge variant="outline" className="text-primary border-primary/40 text-[10px] font-semibold">
-              🎉 가열로 인사이트 3단계 빠른 시작 가이드
-            </Badge>
-            <span className="text-xs text-muted-foreground font-mono">{step + 1} / {steps.length}</span>
-          </div>
-          <DialogTitle className="text-lg font-extrabold flex items-center gap-2 pt-1">
-            <div className={`p-2 rounded-lg border ${current.bg}`}>
-              <Icon className={`w-5 h-5 ${current.color}`} />
-            </div>
-            {current.title}
-          </DialogTitle>
-          <DialogDescription className="text-xs leading-relaxed text-muted-foreground pt-2">
-            {current.desc}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="py-2 flex justify-center gap-1.5">
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/30'}`}
-            />
-          ))}
-        </div>
-
-        <DialogFooter className="flex sm:justify-between items-center pt-2">
-          <Button variant="ghost" size="sm" onClick={handleFinish} className="text-xs text-muted-foreground">
-            다시 보지 않기
+    <>
+      {showLauncher && !open && (
+        <div className="fixed bottom-4 right-4 z-40">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 rounded-full border-primary/25 bg-background/95 shadow-lg backdrop-blur"
+            onClick={() => {
+              setStep(0)
+              setOpen(true)
+            }}
+          >
+            <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
+            빠른 시작 가이드
           </Button>
-          <div className="flex gap-2">
-            {step < steps.length - 1 ? (
-              <Button size="sm" onClick={() => setStep(step + 1)} className="text-xs gap-1">
-                다음 단계 <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            ) : (
-              <Button size="sm" onClick={handleFinish} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> 시작하기
-              </Button>
-            )}
+        </div>
+      )}
+
+      <Dialog
+        open={open}
+        onOpenChange={(val) => {
+          if (!val) handleFinish()
+        }}
+      >
+        <DialogContent className="sm:max-w-md border-primary/30 shadow-xl">
+          <DialogHeader>
+            <div className="flex items-center justify-between mb-1">
+              <Badge variant="outline" className="text-primary border-primary/40 text-[10px] font-semibold">
+                🎉 가열로 인사이트 3단계 빠른 시작 가이드
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono">
+                {step + 1} / {steps.length}
+              </span>
+            </div>
+            <DialogTitle className="text-lg font-extrabold flex items-center gap-2 pt-1">
+              <div className={`p-2 rounded-lg border ${current.bg}`}>
+                <Icon className={`w-5 h-5 ${current.color}`} />
+              </div>
+              {current.title}
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed text-muted-foreground pt-2">
+              {current.desc}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 flex justify-center gap-1.5">
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === step ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/30'
+                }`}
+              />
+            ))}
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          <DialogFooter className="flex sm:justify-between items-center pt-2">
+            <Button variant="ghost" size="sm" onClick={handleFinish} className="text-xs text-muted-foreground">
+              다시 보지 않기
+            </Button>
+            <div className="flex gap-2">
+              {step < steps.length - 1 ? (
+                <Button size="sm" onClick={() => setStep(step + 1)} className="text-xs gap-1">
+                  다음 단계 <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleFinish}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> 시작하기
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -27,8 +27,24 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const themeBootstrapScript = `
+    (() => {
+      try {
+        const key = 'theme';
+        const savedTheme = localStorage.getItem(key);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const dark = savedTheme ? savedTheme === 'dark' : prefersDark;
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (_) {}
+    })();
+  `
+
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className={`${notoSansKR.variable} font-sans antialiased`}>
         <AuthProvider>
           <QueryProvider>
