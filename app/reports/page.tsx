@@ -718,7 +718,7 @@ export default function ReportsPage() {
       }
 
       exportDoc.body.appendChild(exportRoot)
-      const canvas = await html2canvas(exportRoot, { useCORS: true, scale: 0.75 } as any)
+      const canvas = await html2canvas(exportRoot, { useCORS: true, scale: 0.75 })
       exportRoot.remove()
       const pdf = new jsPDF('p', 'mm', 'a4')
       addCanvasToPdf(pdf, canvas)
