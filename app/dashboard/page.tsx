@@ -1,6 +1,7 @@
 'use client'
 
-import { useDashboardKpi } from '@/hooks/use-dashboard'
+import { useMemo } from 'react'
+import { useDashboardKpi, useFurnaces } from '@/hooks/use-dashboard'
 import { useGasRecords } from '@/hooks/use-gas-records'
 import { KpiCard, AchievementCard } from '@/components/charts/kpi-card'
 import { BenchmarkGauge } from '@/components/charts/benchmark-gauge'
@@ -20,8 +21,15 @@ import { normalizeMonthDate } from '@/lib/input/common'
 
 import { InputStatusCard } from '@/components/dashboard/input-status-card'
 
+function sortFurnaceCode(a: string, b: string) {
+  const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0
+  const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0
+  return numA - numB
+}
+
 export default function DashboardPage() {
   const { data: kpi, isLoading: kpiLoading } = useDashboardKpi()
+  const { data: furnaces } = useFurnaces()
 
   // 최근 6개월 가스 데이터
   const sixMonthsAgo = (() => {
@@ -29,6 +37,17 @@ export default function DashboardPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
   })()
   const { data: gasRecords } = useGasRecords({ ymFrom: sixMonthsAgo })
+
+  const trendFurnaceCodes = useMemo(() => {
+    const set = new Set<string>()
+    furnaces?.forEach((f) => {
+      if (f.code) set.add(f.code)
+    })
+    gasRecords?.forEach((r) => {
+      if (r.furnace_code) set.add(r.furnace_code)
+    })
+    return Array.from(set).sort(sortFurnaceCode)
+  }, [furnaces, gasRecords])
 
   // 이상치 감지 (이번달 가스원단위 기준)
   const thisMonthGas = gasRecords?.filter(r => normalizeMonthDate(r.ym) === currentMonthDate()) ?? []
@@ -40,10 +59,9 @@ export default function DashboardPage() {
 
   // 가열로별 월별 원단위 추이 데이터 가공
   const months = [...new Set(gasRecords?.map(r => normalizeMonthDate(r.ym)?.substring(0, 7) ?? r.ym.substring(0, 7)) ?? [])].sort()
-  const furnaceCodes = [...new Set(gasRecords?.map(r => r.furnace_code ?? '') ?? [])].filter(Boolean).slice(0, 7)
   const trendData = months.map(m => {
     const row: Record<string, string | number | null> = { month: m }
-    furnaceCodes.forEach(code => {
+    trendFurnaceCodes.forEach(code => {
       const rec = gasRecords?.find(r => (normalizeMonthDate(r.ym) ?? r.ym).startsWith(m) && r.furnace_code === code)
       row[code] = rec?.gas_unit ?? null
     })
@@ -150,7 +168,7 @@ export default function DashboardPage() {
         {trendData.length > 0 ? (
           <GasUnitTrendChart
             data={trendData as Array<{ month: string; [key: string]: string | number | null }>}
-            furnaceCodes={furnaceCodes}
+            furnaceCodes={trendFurnaceCodes}
             targetValue={kpi?.gasTarget ?? undefined}
           />
         ) : kpiLoading ? (
