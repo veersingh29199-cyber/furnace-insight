@@ -34,9 +34,31 @@ interface BandMetricColumns {
 const DAILY_SHEET_RE = /^(\d{2})(\d{2})월$/
 const MONTHLY_SHEET_RE = /^(\d{4})년 전체$/
 const BAND_ORDER: CanonicalBand[] = ['15000TON', '5000TON', '8000TON', '11000RM', 'TOTAL']
+const FATAL_CELL_RE = /#(?:REF!|DIV\/0!|DIV0!)/i
 
 function compactToken(value: unknown) {
   return normalizeToken(value).replace(/[,\.\u00a0]/g, '')
+}
+
+function hasFatalCell(row: string[]) {
+  return row.some((cell) => FATAL_CELL_RE.test(String(cell ?? '')))
+}
+
+function findBandHeaderIndex(matrix: string[][]) {
+  const searchLimit = Math.min(matrix.length, 12)
+  let bestIndex = Math.min(4, Math.max(searchLimit - 1, 0))
+  let bestScore = -1
+
+  for (let index = 0; index < searchLimit; index += 1) {
+    const row = matrix[index] ?? []
+    const score = row.reduce((total, cell) => total + (canonicalBand(cell) ? 1 : 0), 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  }
+
+  return bestIndex
 }
 
 function canonicalBand(value: unknown): CanonicalBand | null {
@@ -115,7 +137,7 @@ function isFixLabel(token: string) {
   return token.includes('수정') || token.includes('fix')
 }
 
-function getSheetKind(sheetName: string): { ptype: LineOutputPeriodType; year: number; month?: number } | null {
+export function getSheetKind(sheetName: string): { ptype: LineOutputPeriodType; year: number; month?: number } | null {
   const dailyMatch = sheetName.match(DAILY_SHEET_RE)
   if (dailyMatch) {
     const year = Number(`20${dailyMatch[1]}`)
@@ -160,13 +182,14 @@ function parsePeriod(
     return `${kind.year}-${String(kind.month).padStart(2, '0')}-${String(parsed).padStart(2, '0')}`
   }
 
-  return `${kind.year}-${String(parsed).padStart(2, '0')}`
+  return `${kind.year}-${String(parsed).padStart(2, '0')}-01`
 }
 
 function buildBandRanges(matrix: string[][], excludeTotal = false) {
-  const headerRow = matrix[4] ?? []
-  const row5 = matrix[5] ?? []
-  const row6 = matrix[6] ?? []
+  const bandHeaderIndex = findBandHeaderIndex(matrix)
+  const headerRow = matrix[bandHeaderIndex] ?? []
+  const row5 = matrix[bandHeaderIndex + 1] ?? []
+  const row6 = matrix[bandHeaderIndex + 2] ?? []
   const maxColumns = Math.max(headerRow.length, row5.length, row6.length)
 
   const starts = new Map<CanonicalBand, number>()
@@ -232,11 +255,11 @@ function buildMetricColumns(row5: string[], row6: string[], range: BandRange): B
     else if (!columns.achievement && isAchievementLabel(headerToken)) columns.achievement = col
     else if (!columns.hwangji_kg && isHwangjiLabel(headerToken)) columns.hwangji_kg = col
     else if (!columns.cogging_kg && isCoggingLabel(headerToken)) columns.cogging_kg = col
-    else if (!columns.subtotal_kg && isSubtotalLabel(headerToken) && !header6) columns.subtotal_kg = col
+    else if (!columns.subtotal_kg && isSubtotalLabel(headerToken) && range.band !== 'TOTAL') columns.subtotal_kg = col
     else if (!columns.mat_cs_kg && isMatCsLabel(headerToken)) columns.mat_cs_kg = col
     else if (!columns.mat_as_kg && isMatAsLabel(headerToken)) columns.mat_as_kg = col
     else if (!columns.mat_sus_kg && isMatSusLabel(headerToken)) columns.mat_sus_kg = col
-    else if (!columns.mat_total_kg && isSubtotalLabel(header6)) columns.mat_total_kg = col
+    else if (!columns.mat_total_kg && isSubtotalLabel(headerToken) && range.band === 'TOTAL') columns.mat_total_kg = col
     else if (isRemakeLabel(combinedToken) || isRemakeLabel(headerToken)) {
       if (remakeSeen === 0) columns.remake_self_remake = col
       else if (remakeSeen === 1) columns.remake_qc_remake = col
@@ -266,6 +289,7 @@ function buildRowsFromSheet(
   kind: { ptype: LineOutputPeriodType; year: number; month?: number },
   opts: LineOutputParseOptions
 ) {
+  const bandHeaderIndex = findBandHeaderIndex(matrix)
   const { bandRanges, row5, row6 } = buildBandRanges(matrix, Boolean(opts.excludeTotal))
   if (bandRanges.length === 0) return [] as LineOutputRow[]
 
@@ -275,7 +299,10 @@ function buildRowsFromSheet(
   })
 
   const rows: LineOutputRow[] = []
-  matrix.slice(7).forEach((raw) => {
+  const dataStartIndex = bandHeaderIndex + 3
+  matrix.slice(dataStartIndex).forEach((raw) => {
+    if (hasFatalCell(raw)) return
+
     const period = parsePeriod(raw[0], kind)
     if (!period) return
 

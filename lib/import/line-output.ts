@@ -1,10 +1,11 @@
 import { calcAchievementRate, kgToTon } from '@/lib/utils'
 import { detectYearFromSheetName, normalizeDateText, normalizeMonthDate } from '@/lib/import/common'
 import { normalizeToken, parseLooseNumber } from '@/lib/input/common'
-import { isTotalLikeHeader } from '@/lib/input/common'
+import { getSheetKind as getLineOutputSheetKind } from '@/lib/importers/lineOutput'
 import type { ImportPreview, ImportPreviewContext, ImportPreviewRow, ImportSheetAnalysis, LineOutputDailyImportRow, LineOutputMonthlyImportRow } from '@/types/import'
 
 type LineOutputKind = 'daily' | 'monthly'
+const FATAL_CELL_RE = /#(?:REF!|DIV\/0!|DIV0!)/i
 
 interface LineOutputOptions {
   excludeTotal?: boolean
@@ -16,6 +17,10 @@ function compactText(value: unknown) {
 
 function rowHasValues(row: string[]) {
   return row.some((cell) => String(cell ?? '').trim() !== '')
+}
+
+function rowHasFatalCell(row: string[]) {
+  return row.some((cell) => FATAL_CELL_RE.test(String(cell ?? '')))
 }
 
 function makeRowResult<TRecord>(
@@ -62,10 +67,31 @@ function extractWorkCount(label: string) {
   return match ? Number(match[1]) : 0
 }
 
-function getBandStarts(sheet: ImportSheetAnalysis) {
-  const row5 = sheet.matrix[4] ?? []
-  const row6 = sheet.matrix[5] ?? []
-  const row7 = sheet.matrix[6] ?? []
+function findBandHeaderIndex(sheet: ImportSheetAnalysis) {
+  const searchLimit = Math.min(sheet.matrix.length, 12)
+  let bestIndex = Math.min(4, Math.max(searchLimit - 1, 0))
+  let bestScore = -1
+
+  for (let index = 0; index < searchLimit; index += 1) {
+    const row = sheet.matrix[index] ?? []
+    const score = row.reduce((total, cell) => {
+      const code = normalizeLineOutputCode(cell)
+      return total + (code === 'P15' || code === 'P5' || code === 'P8' || code === 'R/M' || code === 'TOTAL' ? 1 : 0)
+    }, 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  }
+
+  return bestIndex
+}
+
+function getBandStarts(sheet: ImportSheetAnalysis, excludeTotal = false) {
+  const bandHeaderIndex = findBandHeaderIndex(sheet)
+  const row5 = sheet.matrix[bandHeaderIndex] ?? []
+  const row6 = sheet.matrix[bandHeaderIndex + 1] ?? []
+  const row7 = sheet.matrix[bandHeaderIndex + 2] ?? []
   const maxColumns = Math.max(sheet.columnCount, row5.length, row6.length, row7.length)
   const starts = new Set<number>()
 
@@ -74,7 +100,7 @@ function getBandStarts(sheet: ImportSheetAnalysis) {
     if (!title) continue
 
     const titleToken = normalizeToken(title)
-    if (isTotalLikeHeader(titleToken) && !titleToken.includes('ko411')) continue
+    if (excludeTotal && normalizeLineOutputCode(title) === 'TOTAL') continue
 
     const row6Token = normalizeToken(row6[index] ?? '')
     const row6NextToken = normalizeToken(row6[index + 1] ?? '')
@@ -91,7 +117,7 @@ function getBandStarts(sheet: ImportSheetAnalysis) {
       )
     })
 
-    if (hasProductCue) starts.add(index)
+    if (hasProductCue || titleToken.includes('total')) starts.add(index)
   }
 
   return [...starts].sort((left, right) => left - right)
@@ -142,20 +168,26 @@ function parseLineOutputSheet<TRecord extends LineOutputDailyImportRow | LineOut
   kind: LineOutputKind,
   options: LineOutputOptions = {}
 ): ImportPreview<TRecord> {
-  const row5 = sheet.matrix[4] ?? []
-  const row6 = sheet.matrix[5] ?? []
-  const row7 = sheet.matrix[6] ?? []
-  const bandStarts = getBandStarts(sheet)
+  const bandHeaderIndex = findBandHeaderIndex(sheet)
+  const row5 = sheet.matrix[bandHeaderIndex] ?? []
+  const row6 = sheet.matrix[bandHeaderIndex + 1] ?? []
+  const row7 = sheet.matrix[bandHeaderIndex + 2] ?? []
+  const bandStarts = getBandStarts(sheet, Boolean(options.excludeTotal))
   const bandEnds = bandStarts.map((start, index) => bandStarts[index + 1] ?? sheet.columnCount)
   const rows: ImportPreviewRow<TRecord>[] = []
   const yearFallback = detectYearFromSheetName(sheet.sheetName)
+  const sheetKind = getLineOutputSheetKind(sheet.sheetName)
+  const dailyBaseYm =
+    kind === 'daily' && sheetKind?.ptype === 'daily'
+      ? `${sheetKind.year}-${String(sheetKind.month ?? 1).padStart(2, '0')}`
+      : null
 
   if (bandStarts.length === 0) {
     return {
       datasetKey: 'line-output',
       layout: kind === 'monthly' ? 'line-output-monthly' : 'line-output-daily',
       sheetName: sheet.sheetName,
-      headerRowIndex: 6,
+      headerRowIndex: bandHeaderIndex + 2,
       columns: sheet.columns,
       rows,
       validRows: [],
@@ -165,12 +197,14 @@ function parseLineOutputSheet<TRecord extends LineOutputDailyImportRow | LineOut
     } as ImportPreview<TRecord>
   }
 
-  sheet.matrix.slice(7).forEach((raw, rowOffset) => {
-    const rowIndex = 8 + rowOffset
+  const dataStartIndex = bandHeaderIndex + 3
+  sheet.matrix.slice(dataStartIndex).forEach((raw, rowOffset) => {
+    const rowIndex = dataStartIndex + rowOffset + 1
     if (!rowHasValues(raw)) return
+    if (rowHasFatalCell(raw)) return
 
     const dateText = compactText(raw[0])
-    const workDate = kind === 'daily' ? normalizeDateText(dateText, null) : null
+    const workDate = kind === 'daily' ? normalizeDateText(dateText, dailyBaseYm) : null
     const ym = kind === 'monthly' ? normalizeMonthDate(dateText, yearFallback) : null
     const rowWorkCount = kind === 'monthly' ? extractWorkCount(dateText) : 0
 
@@ -332,7 +366,7 @@ function parseLineOutputSheet<TRecord extends LineOutputDailyImportRow | LineOut
     datasetKey: 'line-output',
     layout: kind === 'monthly' ? 'line-output-monthly' : 'line-output-daily',
     sheetName: sheet.sheetName,
-    headerRowIndex: 6,
+    headerRowIndex: bandHeaderIndex + 2,
     columns: sheet.columns,
     rows,
     validRows,
