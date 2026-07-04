@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataSheetGrid } from 'react-datasheet-grid'
 import { ArrowDownToLine, ArrowUpDown, FileUp, Loader2, Save, Trash2 } from 'lucide-react'
@@ -15,7 +15,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import ProductionRecordForm from '@/components/forms/production-record-form'
-import { InputPageSkeleton } from '@/components/input/input-page-skeleton'
 import { RouteHero } from '@/components/input/route-hero'
 import {
   createDateKeyColumn,
@@ -73,6 +72,7 @@ import { createInputId } from '@/lib/input/common'
 
 const DRAFT_KEY = 'furnace-input-production-daily-draft-v1'
 const MAX_PREVIEW_ROWS = 20
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 type ProductionPreviewRow = ParsedSpreadsheetRow<ProductionGridRow>
 type ProductionDraft = {
@@ -485,7 +485,6 @@ export default function ProductionInputPage() {
   const [preview, setPreview] = useState<ParsedSpreadsheet<ProductionGridRow> | null>(null)
   const [activeFileName, setActiveFileName] = useState('')
   const [isHydrated, setIsHydrated] = useState(false)
-  const [isContentReady, setIsContentReady] = useState(false)
 
   const lineOptions = useMemo(
     () => (lines ?? []).map((line) => ({ label: `${line.code} · ${line.name}`, value: line.code })),
@@ -586,29 +585,15 @@ export default function ProductionInputPage() {
     [furnaceOptions, lineOptions, materialOptions, processOptions, productOptions]
   )
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const draft = readDraft()
-      setMonthYm(draft.monthYm)
-      setMode(draft.mode)
-      setGridRows(draft.gridRows)
-      setPasteText(draft.pasteText)
-      setActiveFileName(draft.activeFileName)
-      setIsHydrated(true)
-    }, 0)
-
-    return () => window.clearTimeout(handle)
+  useIsomorphicLayoutEffect(() => {
+    const draft = readDraft()
+    setMonthYm(draft.monthYm)
+    setMode(draft.mode)
+    setGridRows(draft.gridRows)
+    setPasteText(draft.pasteText)
+    setActiveFileName(draft.activeFileName)
+    setIsHydrated(true)
   }, [])
-
-  useEffect(() => {
-    if (!isHydrated) return
-
-    const handle = window.setTimeout(() => {
-      setIsContentReady(true)
-    }, 0)
-
-    return () => window.clearTimeout(handle)
-  }, [isHydrated])
 
   useEffect(() => {
     if (!isHydrated || typeof window === 'undefined') return
@@ -880,10 +865,6 @@ export default function ProductionInputPage() {
     },
   ]
 
-  if (!isContentReady) {
-    return <InputPageSkeleton />
-  }
-
   return (
     <div className="space-y-6">
       <RouteHero
@@ -909,8 +890,7 @@ export default function ProductionInputPage() {
         )}
       />
 
-      {isContentReady ? (
-        <>
+      <>
           <Tabs value={mode} onValueChange={(value) => setMode(value as ProductionDraft['mode'])} className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="grid">그리드 직접 입력</TabsTrigger>
@@ -1201,10 +1181,7 @@ export default function ProductionInputPage() {
             <SummaryCard title="공정별" rows={processSummary} />
             <SummaryCard title="가열로별" rows={furnaceSummary} />
           </div>
-        </>
-      ) : (
-        <InputPageSkeleton />
-      )}
+      </>
     </div>
   )
 }

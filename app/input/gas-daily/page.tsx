@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useState } from 'react'
 import type { Furnace, GasDailyReading, Shift } from '@/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataSheetGrid } from 'react-datasheet-grid'
@@ -16,7 +16,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import GasDailyForm from '@/components/forms/gas-daily-form'
-import { InputPageSkeleton } from '@/components/input/input-page-skeleton'
 import { RouteHero } from '@/components/input/route-hero'
 import {
   createDynamicNumberKeyColumn,
@@ -44,6 +43,7 @@ import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 const DRAFT_KEY = 'furnace-input-gas-daily-draft-v2'
 const MAX_PREVIEW_ROWS = 20
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 type DailyPreviewRow = ParsedSpreadsheetRow<DailyGasGridRow>
 type DailyDraft = {
@@ -349,7 +349,6 @@ export default function GasDailyInputPage() {
   const [preview, setPreview] = useState<ParsedSpreadsheet<DailyGasGridRow> | null>(null)
   const [activeFileName, setActiveFileName] = useState('')
   const [isHydrated, setIsHydrated] = useState(false)
-  const [isContentReady, setIsContentReady] = useState(false)
 
   const previousMonth = previousMonthYm(monthYm)
   const previousMonthLastDay = daysInMonth(previousMonth)
@@ -403,29 +402,15 @@ export default function GasDailyInputPage() {
     [furnaces]
   )
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const draft = readDraft()
-      setMonthYm(draft.monthYm)
-      setMode(draft.mode)
-      setGridRows(draft.gridRows)
-      setPasteText(draft.pasteText)
-      setActiveFileName(draft.activeFileName)
-      setIsHydrated(true)
-    }, 0)
-
-    return () => window.clearTimeout(handle)
+  useIsomorphicLayoutEffect(() => {
+    const draft = readDraft()
+    setMonthYm(draft.monthYm)
+    setMode(draft.mode)
+    setGridRows(draft.gridRows)
+    setPasteText(draft.pasteText)
+    setActiveFileName(draft.activeFileName)
+    setIsHydrated(true)
   }, [])
-
-  useEffect(() => {
-    if (!isHydrated) return
-
-    const handle = window.setTimeout(() => {
-      setIsContentReady(true)
-    }, 0)
-
-    return () => window.clearTimeout(handle)
-  }, [isHydrated])
 
   useEffect(() => {
     if (!isHydrated || typeof window === 'undefined') return
@@ -706,8 +691,7 @@ export default function GasDailyInputPage() {
         }
       />
 
-      {isContentReady ? (
-        <>
+      <>
           <Tabs value={mode} onValueChange={(value) => setMode(value as DailyDraft['mode'])} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="grid">그리드 직접 입력</TabsTrigger>
@@ -936,10 +920,7 @@ export default function GasDailyInputPage() {
           임시저장 삭제
         </Button>
       </div>
-        </>
-      ) : (
-        <InputPageSkeleton />
-      )}
+      </>
     </div>
   )
 }
