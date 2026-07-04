@@ -16,6 +16,51 @@ type SelectColumnData = {
   allowEmpty?: boolean
 }
 
+function DateCell<T extends string | null>({
+  focus,
+  rowData,
+  setRowData,
+  stopEditing,
+}: CellProps<T, unknown>) {
+  const ref = React.useRef<HTMLInputElement>(null)
+
+  React.useLayoutEffect(() => {
+    if (!ref.current) return
+
+    if (focus) {
+      ref.current.focus()
+      ref.current.showPicker?.()
+    } else {
+      ref.current.blur()
+    }
+  }, [focus])
+
+  return (
+    <input
+      ref={ref}
+      type="date"
+      tabIndex={-1}
+      value={(rowData ?? '') as string}
+      className={cn(
+        'dsg-input h-full w-full rounded-none border-0 bg-transparent px-2 text-sm text-foreground outline-none',
+        'focus:ring-0 focus-visible:ring-0'
+      )}
+      style={{ pointerEvents: focus ? 'auto' : 'none' }}
+      onChange={(event) => {
+        setRowData((event.target.value || null) as T)
+      }}
+      onBlur={() => {
+        stopEditing()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          stopEditing()
+        }
+      }}
+    />
+  )
+}
+
 type AnyColumn<T> = Partial<Column<T, unknown, string>>
 
 function SelectCell<T extends string | null>({
@@ -156,6 +201,40 @@ export function createTextKeyColumn<T extends object, K extends keyof T>(
       grow: 1,
       shrink: 1,
       minWidth: config?.minWidth ?? 120,
+    }) as never
+  ) as AnyColumn<T>
+}
+
+export function createDateKeyColumn<T extends object, K extends keyof T>(
+  key: K,
+  title: React.ReactNode,
+  config?: {
+    basis?: number
+    minWidth?: number
+  }
+): AnyColumn<T> {
+  const base = createTextColumn({
+    placeholder: '',
+    alignRight: false,
+    parseUserInput: (value) => value.trim(),
+    formatBlurredInput: (value) => String(value ?? ''),
+    formatInputOnFocus: (value) => String(value ?? ''),
+    parsePastedValue: (value) => value.trim(),
+  }) as unknown as Partial<Column<T[K], unknown, string>>
+
+  return keyColumn(
+    key as never,
+    Object.assign({}, base, {
+      title,
+      basis: config?.basis ?? 130,
+      grow: 1,
+      shrink: 1,
+      minWidth: config?.minWidth ?? 120,
+      component: DateCell as never,
+      deleteValue: () => null as never,
+      copyValue: ({ rowData }: { rowData: unknown }) => (rowData == null ? '' : String(rowData)),
+      pasteValue: ({ value }: { value: string }) => value.trim() as never,
+      isCellEmpty: ({ rowData }: { rowData: unknown }) => rowData == null || rowData === '',
     }) as never
   ) as AnyColumn<T>
 }

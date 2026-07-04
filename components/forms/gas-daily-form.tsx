@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, type Resolver } from 'react-hook-form'
+import { Controller, useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { gasDailyReadingSchema, type GasDailyReadingInput } from '@/lib/validations'
 import { useFurnaces } from '@/hooks/use-dashboard'
@@ -13,16 +13,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { useState } from 'react'
 import { DB, DB_CONFLICT_KEYS } from '@/types/db'
 
 export default function GasDailyForm() {
   const { data: furnaces } = useFurnaces()
   const supabase = createClient()
   const qc       = useQueryClient()
-  const [formKey, setFormKey] = useState(0)
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } =
+  const { register, handleSubmit, reset, control, formState: { errors } } =
     useForm<GasDailyReadingInput>({
       resolver: zodResolver(gasDailyReadingSchema) as unknown as Resolver<GasDailyReadingInput>,
       defaultValues: {
@@ -36,19 +34,19 @@ export default function GasDailyForm() {
 
   const upsert = useMutation({
     mutationFn: async (data: GasDailyReadingInput) => {
-      const { data: { user } } = await supabase.auth.getUser()
       const opName = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_name') || '김철수 (단조1팀)' : null
       const opShift = typeof window !== 'undefined' ? localStorage.getItem('furnace_operator_shift') || 'day' : null
       const { error } = await supabase
         .from(DB.tables.gasDailyReadings)
-        .upsert({ ...data, order_no: data.order_no || null, created_by: user?.id || null, entered_by_name: opName, entered_by_shift: opShift }, { onConflict: DB_CONFLICT_KEYS.gasDailyReadings })
+        .upsert({ ...data, order_no: data.order_no || null, created_by: null, entered_by_name: opName, entered_by_shift: opShift }, { onConflict: DB_CONFLICT_KEYS.gasDailyReadings })
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['gas-daily'] })
+      qc.invalidateQueries({ queryKey: ['gas-daily-all'] })
+      qc.invalidateQueries({ queryKey: ['input-home-daily-count'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-kpi'] })
       toast.success('일별 검침이 저장되었습니다.')
       reset()
-      setFormKey((key) => key + 1)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -60,7 +58,7 @@ export default function GasDailyForm() {
         <CardDescription>일자·교대조별 가스 자체 검침값을 입력합니다.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form key={formKey} onSubmit={handleSubmit(d => upsert.mutate(d))} className="space-y-5">
+        <form onSubmit={handleSubmit((data) => upsert.mutate(data))} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label>날짜 *</Label>
@@ -70,27 +68,45 @@ export default function GasDailyForm() {
 
             <div className="space-y-1.5">
               <Label>가열로 *</Label>
-              <Select onValueChange={(v: string | null) => setValue('furnace_code', String(v ?? ''))}>
-                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {furnaces?.map(f => (
-                    <SelectItem key={f.code} value={f.code}>{f.code}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="furnace_code"
+                render={({ field }) => (
+                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="선택" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {furnaces?.map((f) => (
+                        <SelectItem key={f.code} value={f.code}>
+                          {f.code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
               {errors.furnace_code && <p className="text-xs text-destructive">{errors.furnace_code.message}</p>}
             </div>
 
             <div className="space-y-1.5">
               <Label>교대조 *</Label>
-              <Select defaultValue="day" onValueChange={(v: string | null) => setValue('shift', (String(v ?? 'day')) as 'day' | 'night' | 'both')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">주간조</SelectItem>
-                  <SelectItem value="night">야간조</SelectItem>
-                  <SelectItem value="both">합계</SelectItem>
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="shift"
+                render={({ field }) => (
+                  <Select value={field.value ?? 'day'} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">주간조</SelectItem>
+                      <SelectItem value="night">야간조</SelectItem>
+                      <SelectItem value="both">합계</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             <div className="space-y-1.5">

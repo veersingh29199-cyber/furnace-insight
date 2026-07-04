@@ -1,12 +1,5 @@
 'use client'
 
-import {
-  RadialBarChart,
-  RadialBar,
-  ResponsiveContainer,
-  Legend,
-  Tooltip,
-} from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
@@ -16,7 +9,7 @@ interface BenchmarkGaugeProps {
   benchmarks: Array<{
     org: string
     metric: string
-    product_or_scope: string
+    scope: string
     value: number
   }>
 }
@@ -34,7 +27,7 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
   const metricLabel = metric === 'gas_unit' ? '가스원단위' : '시간당 생산량'
   const unit        = metric === 'gas_unit' ? '' : '톤/h'
 
-  if (!currentValue && filtered.length === 0) {
+  if (currentValue == null && filtered.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -71,7 +64,11 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
         )}
 
         {/* 벤치마크 항목들 */}
-        {filtered.map((b) => {
+        {filtered.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+            비교 가능한 기준이 없습니다
+          </div>
+        ) : filtered.map((b) => {
           const color = COLORS[b.org as keyof typeof COLORS] ?? '#6b7280'
           const diff  = currentValue != null ? currentValue - b.value : null
           const isGood = metric === 'gas_unit'
@@ -79,12 +76,12 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
             : (diff != null && diff > 0)
 
           return (
-            <div key={`${b.org}-${b.product_or_scope}`}
+            <div key={`${b.org}-${b.scope}`}
               className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                 <span className="text-sm">{b.org}</span>
-                <Badge variant="outline" className="text-xs h-4 px-1">{b.product_or_scope}</Badge>
+                <Badge variant="outline" className="text-xs h-4 px-1">{b.scope}</Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm">{b.value.toFixed(1)} {unit}</span>

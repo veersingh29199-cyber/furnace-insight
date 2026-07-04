@@ -48,8 +48,7 @@ export function parseDelimitedText(text: string) {
 
   const lines = normalized
     .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.trim() !== '')
 
   return lines.map((line) => {
     if (line.includes('\t')) {
@@ -102,6 +101,36 @@ export function ymToDate(ym: string) {
   return `${ym}-01`
 }
 
+export function normalizeMonthDate(value?: string | null) {
+  if (!value) return null
+  const trimmed = String(value).trim()
+  const match = trimmed.match(/^(20\d{2})-(\d{1,2})(?:-(\d{1,2}))?$/)
+  if (!match) return null
+  return `${match[1]}-${match[2].padStart(2, '0')}-01`
+}
+
+export function monthDateSeries(startMonth: string, endMonth: string) {
+  const start = normalizeMonthDate(startMonth)
+  const end = normalizeMonthDate(endMonth)
+
+  if (!start || !end) return []
+
+  const [startYear, startMonthNumber] = start.split('-').map((part) => Number(part))
+  const [endYear, endMonthNumber] = end.split('-').map((part) => Number(part))
+  const current = new Date(startYear, startMonthNumber - 1, 1)
+  const last = new Date(endYear, endMonthNumber - 1, 1)
+
+  if (current > last) return []
+
+  const months: string[] = []
+  while (current <= last) {
+    months.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-01`)
+    current.setMonth(current.getMonth() + 1)
+  }
+
+  return months
+}
+
 export function previousMonthYm(ym: string) {
   const [year, month] = ym.split('-').map((part) => Number(part))
   const d = new Date(year, month - 2, 1)
@@ -128,4 +157,3 @@ export function isTotalLikeHeader(value: unknown) {
     token.includes('계')
   )
 }
-

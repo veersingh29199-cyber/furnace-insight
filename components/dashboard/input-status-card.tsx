@@ -7,18 +7,26 @@ import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertCircle, ArrowRight, ClipboardList, Flame, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
+import { currentMonthDate } from '@/lib/utils'
+import { DB } from '@/types/db'
 
 const supabase = createClient()
 
 export function InputStatusCard() {
-  const currentYm = new Date().toISOString().slice(0, 7) // 예: 2026-07
+  const currentMonth = currentMonthDate()
+  const currentYm = currentMonth.slice(0, 7) // 예: 2026-07
   const todayDate = new Date().toISOString().slice(0, 10)
+  const lastDay = new Date(Number(currentYm.slice(0, 4)), Number(currentYm.slice(5, 7)), 0).getDate()
 
   // 1. 이번달 생산실적 확인
   const { data: prodCount = 0 } = useQuery({
     queryKey: ['status-prod', currentYm],
     queryFn: async () => {
-      const { count } = await supabase.from('production_records').select('*', { count: 'exact', head: true }).gte('work_month', `${currentYm}-01`).lte('work_month', `${currentYm}-31`)
+      const { count } = await supabase
+        .from(DB.tables.productionRecords)
+        .select('*', { count: 'exact', head: true })
+        .gte(DB.productionRecords.workDate, `${currentYm}-01`)
+        .lte(DB.productionRecords.workDate, `${currentYm}-${String(lastDay).padStart(2, '0')}`)
       return count || 0
     },
   })
@@ -27,7 +35,10 @@ export function InputStatusCard() {
   const { data: gasCount = 0 } = useQuery({
     queryKey: ['status-gas', currentYm],
     queryFn: async () => {
-      const { count } = await supabase.from('gas_records').select('*', { count: 'exact', head: true }).eq('ym', currentYm)
+      const { count } = await supabase
+        .from(DB.tables.gasRecords)
+        .select('*', { count: 'exact', head: true })
+        .eq(DB.gasRecords.ym, currentMonth)
       return count || 0
     },
   })
@@ -36,7 +47,10 @@ export function InputStatusCard() {
   const { data: dailyCount = 0 } = useQuery({
     queryKey: ['status-daily', todayDate],
     queryFn: async () => {
-      const { count } = await supabase.from('gas_daily_readings').select('*', { count: 'exact', head: true }).eq('date', todayDate)
+      const { count } = await supabase
+        .from(DB.tables.gasDailyReadings)
+        .select('*', { count: 'exact', head: true })
+        .eq(DB.gasDailyReadings.date, todayDate)
       return count || 0
     },
   })

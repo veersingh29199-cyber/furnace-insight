@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -152,21 +152,17 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
 
   const [selectedCodes, setSelectedCodes] = useState<string[]>([])
   const [hoveredCode, setHoveredCode] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (selectedCodes.length === 0 && sortedCodes.length > 0) {
-      setSelectedCodes(sortedCodes)
-    }
-  }, [sortedCodes])
+  const activeCodes = selectedCodes.length > 0 ? selectedCodes : sortedCodes
 
   const toggleCode = (code: string) => {
     setSelectedCodes(prev => {
-      if (prev.includes(code)) {
+      const current = prev.length > 0 ? prev : sortedCodes
+      if (current.includes(code)) {
         // 최소 1개는 켜져있게 유지
-        if (prev.length === 1) return prev
-        return prev.filter(c => c !== code)
+        if (current.length === 1) return current
+        return current.filter(c => c !== code)
       }
-      return [...prev, code]
+      return [...current, code]
     })
   }
 
@@ -229,7 +225,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
         <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-border/40 mt-2">
           {sortedCodes.map((code, i) => {
             const color = GAS_COLORS[i % GAS_COLORS.length]
-            const isSelected = selectedCodes.includes(code)
+            const isSelected = activeCodes.includes(code)
             const isHovered = hoveredCode === code
             return (
               <button
@@ -284,7 +280,7 @@ export function GasUnitTrendChart({ data, furnaceCodes, targetValue }: GasUnitTr
                 />
               )}
               {sortedCodes.map((code, i) => {
-                const isSelected = selectedCodes.includes(code)
+                const isSelected = activeCodes.includes(code)
                 if (!isSelected) return null
 
                 const isHovered = hoveredCode === code
