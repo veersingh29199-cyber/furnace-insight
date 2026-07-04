@@ -27,7 +27,7 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
   const metricLabel = metric === 'gas_unit' ? '가스원단위' : '시간당 생산량'
   const unit        = metric === 'gas_unit' ? '' : '톤/h'
 
-  if (!currentValue && filtered.length === 0) {
+  if (currentValue == null && filtered.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -64,7 +64,11 @@ export function BenchmarkGauge({ metric, currentValue, benchmarks }: BenchmarkGa
         )}
 
         {/* 벤치마크 항목들 */}
-        {filtered.map((b) => {
+        {filtered.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+            비교 가능한 기준이 없습니다
+          </div>
+        ) : filtered.map((b) => {
           const color = COLORS[b.org as keyof typeof COLORS] ?? '#6b7280'
           const diff  = currentValue != null ? currentValue - b.value : null
           const isGood = metric === 'gas_unit'
