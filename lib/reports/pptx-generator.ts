@@ -1,5 +1,4 @@
 import PptxGenJS from 'pptxgenjs'
-import { format } from 'date-fns'
 
 export interface ReportDataPayload {
   type: 'productivity' | 'gas'
@@ -57,6 +56,18 @@ export async function generatePptxReport(data: ReportDataPayload) {
 
   const FONT_TITLE  = '맑은 고딕'
   const FONT_BODY   = '맑은 고딕'
+  const lineNameMap = new Map((data.lines ?? []).map((line) => [line.code, line.name]))
+  const furnaceNameMap = new Map((data.furnaces ?? []).map((furnace) => [furnace.code, furnace.name]))
+
+  const formatLineLabel = (lineCode: string) => {
+    const lineName = lineNameMap.get(lineCode)
+    return lineName ? `${lineName} (${lineCode})` : lineCode
+  }
+
+  const formatFurnaceLabel = (furnaceCode: string) => {
+    const furnaceName = furnaceNameMap.get(furnaceCode)
+    return furnaceName ? `${furnaceName} (${furnaceCode})` : furnaceCode
+  }
 
   // 슬라이드 1: 표지
   const coverSlide = pptx.addSlide()
@@ -164,14 +175,18 @@ export async function generatePptxReport(data: ReportDataPayload) {
       const tableHeaders = ['연도', '라인', '목표 생산량(톤)', '실적 생산량(톤)', '달성률(%)', '시간당생산량(t/h)']
       const tableRows = data.yearlyProductivity.slice(0, 8).map((r) => [
         r.year.toString(),
-        r.lineCode,
+        formatLineLabel(r.lineCode),
         r.planTon.toLocaleString(),
         r.actualTon.toLocaleString(),
         `${r.achievePct.toFixed(1)}%`,
         r.tonPerHour.toFixed(1),
       ])
 
-      lineSlide.addTable([tableHeaders, ...tableRows] as any, {
+      const tableData: PptxGenJS.TableRow[] = [tableHeaders, ...tableRows].map((row) =>
+        row.map((text) => ({ text }))
+      )
+
+      lineSlide.addTable(tableData, {
         x: 0.6,
         y: 1.5,
         w: 4.6,
@@ -220,9 +235,43 @@ export async function generatePptxReport(data: ReportDataPayload) {
       lineSlide.addText('선택한 기간의 생산 실적 데이터가 없습니다.', { x: 0.8, y: 3.0, fontSize: 14 })
     }
 
-    // 슬라이드 4: 제품별 시간당 생산량 vs 두산 벤치마크
+    // 슬라이드 4: 라인별 현실 목표 제안
+    const targetSlide = pptx.addSlide()
+    addSlideHeader(targetSlide, '3. 라인별 현실 목표 제안', '현재 평균 대비 115%와 회사 기준 중 높은 값을 제안')
+
+    if (data.realisticTargets && data.realisticTargets.length > 0) {
+      const tableHeaders = ['라인', '현재 평균(t/h)', '기준(t/h)', '제안 목표(t/h)', '설명']
+      const tableRows = data.realisticTargets.slice(0, 8).map((r) => [
+        formatLineLabel(r.lineCode),
+        r.currentAvg.toFixed(1),
+        r.benchmark.toFixed(1),
+        r.proposedTarget.toFixed(1),
+        r.reason,
+      ])
+
+      const tableData: PptxGenJS.TableRow[] = [tableHeaders, ...tableRows].map((row) =>
+        row.map((text) => ({ text }))
+      )
+
+      targetSlide.addTable(tableData, {
+        x: 0.55,
+        y: 1.45,
+        w: 8.9,
+        h: 4.9,
+        fontSize: 10,
+        fontFace: FONT_BODY,
+        border: { pt: 1, color: 'E2E8F0' },
+        fill: { color: COLOR_LIGHT },
+        color: COLOR_DARK,
+        autoPage: false,
+      })
+    } else {
+      targetSlide.addText('라인별 현실 목표 제안 데이터가 없습니다.', { x: 0.8, y: 3.0, fontSize: 14 })
+    }
+
+    // 슬라이드 5: 제품별 시간당 생산량 vs 두산 벤치마크
     const bmSlide = pptx.addSlide()
-    addSlideHeader(bmSlide, '3. 제품/재질별 시간당 생산량 (t/h) 및 벤치마크 비교', '두산 기준값(금형강 25, 크랭크축 26 등) 대비')
+    addSlideHeader(bmSlide, '4. 제품/재질별 시간당 생산량 (t/h) 및 벤치마크 비교', '두산 기준값(금형강 25, 크랭크축 26 등) 대비')
 
     if (data.productBenchmarks && data.productBenchmarks.length > 0) {
       const labels = data.productBenchmarks.map((b) => b.productName)
@@ -292,6 +341,38 @@ export async function generatePptxReport(data: ReportDataPayload) {
           legendPos: 't',
         }
       )
+    }
+
+    const furnaceSlide = pptx.addSlide()
+    addSlideHeader(furnaceSlide, '3. 호기별 평균 원단위 표', '가열로별 실적과 회사 기준 비교')
+
+    if (data.furnaceGasStats && data.furnaceGasStats.length > 0) {
+      const tableHeaders = ['호기', '평균 원단위', '기준', '상태']
+      const tableRows = data.furnaceGasStats.slice(0, 10).map((row) => [
+        formatFurnaceLabel(row.furnaceCode),
+        row.avgUnit.toFixed(1),
+        row.targetUnit.toFixed(1),
+        row.status,
+      ])
+
+      const tableData: PptxGenJS.TableRow[] = [tableHeaders, ...tableRows].map((row) =>
+        row.map((text) => ({ text }))
+      )
+
+      furnaceSlide.addTable(tableData, {
+        x: 0.55,
+        y: 1.45,
+        w: 8.9,
+        h: 4.9,
+        fontSize: 10,
+        fontFace: FONT_BODY,
+        border: { pt: 1, color: 'E2E8F0' },
+        fill: { color: COLOR_LIGHT },
+        color: COLOR_DARK,
+        autoPage: false,
+      })
+    } else {
+      furnaceSlide.addText('호기별 가스원단위 데이터가 없습니다.', { x: 0.8, y: 3.0, fontSize: 14 })
     }
   }
 

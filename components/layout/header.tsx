@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useAuth } from '@/components/providers/auth-provider'
-import { useOperator, DEFAULT_OPERATORS } from '@/hooks/use-operator'
+import { useOperator } from '@/hooks/use-operator'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,19 +14,39 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Menu, Moon, Sun, LogOut, User, ChevronDown, UserCheck, Clock } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, Clock, LogOut, Menu, Moon, Sun, User, UserCheck } from 'lucide-react'
 
 const roleLabels: Record<string, string> = {
-  admin:  '관리자',
-  editor: '편집자',
+  admin: '관리자',
+  editor: '입력자',
   viewer: '조회자',
 }
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
-  admin:  'default',
+  admin: 'default',
   editor: 'secondary',
   viewer: 'outline',
+}
+
+const THEME_STORAGE_KEY = 'theme'
+const THEME_CHANGE_EVENT = 'furnace-theme-change'
+
+function getThemeSnapshot() {
+  if (typeof window === 'undefined') return false
+  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  return savedTheme ? savedTheme === 'dark' : prefersDark
+}
+
+function subscribeTheme(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const handleChange = () => onStoreChange()
+  window.addEventListener('storage', handleChange)
+  window.addEventListener(THEME_CHANGE_EVENT, handleChange)
+  return () => {
+    window.removeEventListener('storage', handleChange)
+    window.removeEventListener(THEME_CHANGE_EVENT, handleChange)
+  }
 }
 
 interface HeaderProps {
@@ -36,28 +57,32 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps) {
   const { user, profile, signOut } = useAuth()
-  const { name: operatorName, shift: operatorShift, operatorList, setName: setOperatorName, setShift: setOperatorShift, addOperatorPreset, mounted } = useOperator()
-  const [dark, setDark] = useState(false)
+  const {
+    name: operatorName,
+    shift: operatorShift,
+    operatorList,
+    setName: setOperatorName,
+    setShift: setOperatorShift,
+    addOperatorPreset,
+    mounted,
+  } = useOperator()
   const [customInput, setCustomInput] = useState('')
+  const dark = useSyncExternalStore(subscribeTheme, getThemeSnapshot, () => false)
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark')
-      setDark(true)
-    }
-  }, [])
+    document.documentElement.classList.toggle('dark', dark)
+  }, [dark])
 
   const toggleDark = () => {
+    if (typeof window === 'undefined') return
     const next = !dark
-    setDark(next)
     document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
+    window.localStorage.setItem(THEME_STORAGE_KEY, next ? 'dark' : 'light')
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT))
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4 lg:px-6">
-      {/* 햄버거 메뉴 (모바일) */}
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -67,35 +92,28 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
         <Menu className="h-5 w-5" />
       </Button>
 
-      {/* 페이지 제목 / 설명 */}
-      <div className="flex flex-col min-w-0 flex-1">
-        <h1 className="text-sm font-semibold truncate text-foreground">
-          {pageTitle || '가열로 인사이트'}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-sm font-semibold text-foreground sm:text-base">
+          {pageTitle ?? '가열로 인사이트'}
         </h1>
-        {pageDesc && (
-          <p className="text-xs text-muted-foreground truncate hidden sm:block">
-            {pageDesc}
-          </p>
-        )}
+        <p className="hidden truncate text-xs text-muted-foreground sm:block">
+          {pageDesc ?? '입력과 분석이 바로 이어지는 작업 화면'}
+        </p>
       </div>
 
-      {/* 우측 도구 모음 */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* 현장 실무자 선택기 (상시 접근 가능) */}
         {mounted && (
-          <div className="flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1 shadow-sm">
+          <div className="hidden items-center gap-2 rounded-full border bg-card px-3 py-1.5 shadow-sm md:flex">
             <UserCheck className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs text-muted-foreground hidden md:inline">입력자:</span>
-            
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary transition-colors focus:outline-none">
+              <DropdownMenuTrigger className="inline-flex items-center gap-1 text-xs font-semibold text-foreground outline-none transition-colors hover:text-primary">
                 <span>{operatorName}</span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-xs font-semibold">현장 실무자 선택</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs font-semibold">입력자 선택</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {(operatorList || []).map((op) => (
+                {(operatorList ?? []).map((op) => (
                   <DropdownMenuItem
                     key={op}
                     className={`cursor-pointer text-xs ${operatorName === op ? 'font-bold text-primary bg-primary/10' : ''}`}
@@ -105,27 +123,27 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <div className="p-2 space-y-1">
-                  <p className="text-[11px] text-muted-foreground">직접 입력 (새 명단에 자동 추가)</p>
+                <div className="space-y-2 p-2">
+                  <p className="text-[11px] text-muted-foreground">새 이름을 입력해 바로 추가할 수 있습니다.</p>
                   <div className="flex gap-1">
                     <Input
-                      placeholder="이름 (소속)"
+                      placeholder="이름"
                       value={customInput}
                       onChange={(e) => setCustomInput(e.target.value)}
                       className="h-7 text-xs"
                     />
                     <Button
                       size="sm"
-                      className="h-7 text-xs px-2"
+                      className="h-7 px-2 text-xs"
                       onClick={() => {
-                        if (customInput.trim()) {
-                          addOperatorPreset(customInput.trim())
-                          setOperatorName(customInput.trim())
-                          setCustomInput('')
-                        }
+                        const next = customInput.trim()
+                        if (!next) return
+                        addOperatorPreset(next)
+                        setOperatorName(next)
+                        setCustomInput('')
                       }}
                     >
-                      확인
+                      추가
                     </Button>
                   </div>
                 </div>
@@ -137,33 +155,31 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-1.5 text-xs font-semibold gap-1"
+              className="h-7 gap-1 px-2 text-xs font-medium"
               onClick={() => setOperatorShift(operatorShift === 'day' ? 'night' : 'day')}
             >
               <Clock className="h-3 w-3 text-amber-500" />
-              {operatorShift === 'day' ? '주간조' : '야간조'}
+              {operatorShift === 'day' ? '주간' : '야간'}
             </Button>
           </div>
         )}
 
-        {/* 다크모드 토글 */}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDark}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          <span className="sr-only">다크모드 전환</span>
+          <span className="sr-only">테마 전환</span>
         </Button>
 
-        {/* 사용자 메뉴 (관리자 로그인 시) */}
         {user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 gap-2 px-2 text-sm cursor-pointer outline-none">
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+            <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 gap-2 outline-none">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                 {profile?.name?.[0] ?? user.email?.[0]?.toUpperCase() ?? 'U'}
               </div>
-              <span className="hidden sm:inline max-w-[100px] truncate">
+              <span className="hidden max-w-[100px] truncate sm:inline">
                 {profile?.name ?? user.email?.split('@')[0]}
               </span>
               {profile?.role && (
-                <Badge variant={roleBadgeVariant[profile.role]} className="hidden sm:inline-flex text-xs h-4 px-1.5">
+                <Badge variant={roleBadgeVariant[profile.role]} className="hidden h-4 px-1.5 text-xs sm:inline-flex">
                   {roleLabels[profile.role]}
                 </Badge>
               )}
@@ -173,7 +189,7 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-0.5">
                   <p className="font-medium text-sm">{profile?.name ?? '-'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -194,7 +210,7 @@ export default function Header({ onMenuClick, pageTitle, pageDesc }: HeaderProps
         ) : (
           <a
             href="/login"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3 text-xs font-medium transition-colors"
+            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             관리자 로그인
           </a>

@@ -26,9 +26,7 @@ export async function proxy(request: NextRequest) {
   )
 
   // 세션 갱신 (이 호출은 절대 삭제하지 마세요)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 

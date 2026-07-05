@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import { Controller, useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { gasRecordSchema, type GasRecordInput } from '@/lib/validations'
 import { useUpsertGasRecord } from '@/hooks/use-gas-records'
@@ -21,18 +21,18 @@ export default function GasRecordForm() {
   const upsert = useUpsertGasRecord()
 
   const {
-    register, handleSubmit, setValue, reset, control,
+    register, handleSubmit, reset, control,
     formState: { errors },
   } = useForm<GasRecordInput>({
     resolver: zodResolver(gasRecordSchema) as unknown as Resolver<GasRecordInput>,
     defaultValues: {
-      ym:               currentMonthDate(),
-      furnace_code:     '',
-      order_no:         '',
+      ym: currentMonthDate(),
+      furnace_code: '',
+      order_no: '',
       charge_weight_kg: 0,
-      gas_usage:        0,
-      source:           'meter',
-      note:             '',
+      gas_usage: 0,
+      source: 'meter',
+      note: '',
     },
   })
 
@@ -72,9 +72,18 @@ export default function GasRecordForm() {
                 검침 월 <span className="text-destructive">*</span>
                 <InfoTooltip content="해당 가스검침 실적이 속하는 월(YYYY-MM)을 선택합니다." />
               </Label>
-              <Input type="month"
-                defaultValue={currentMonthDate().substring(0, 7)}
-                onChange={e => setValue('ym', e.target.value ? `${e.target.value}-01` : '')}
+              <Controller
+                control={control}
+                name="ym"
+                render={({ field }) => (
+                  <Input
+                    type="month"
+                    value={field.value ? field.value.slice(0, 7) : ''}
+                    onChange={(event) => field.onChange(event.target.value ? `${event.target.value}-01` : '')}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                )}
               />
               {errors.ym && <p className="text-xs text-destructive">{errors.ym.message}</p>}
             </div>
@@ -84,14 +93,24 @@ export default function GasRecordForm() {
                 가열로 <span className="text-destructive">*</span>
                 <InfoTooltip content="가스를 소비한 단조 공장 내 가열로 호기를 마스터 데이터에서 선택합니다." />
               </Label>
-              <Select onValueChange={(v: string | null) => setValue('furnace_code', String(v ?? ''))}>
-                <SelectTrigger><SelectValue placeholder="가열로 선택" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {furnaces?.map(f => (
-                    <SelectItem key={f.code} value={f.code}>{f.code} — {f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="furnace_code"
+                render={({ field }) => (
+                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="가열로 선택" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {furnaces?.map((f) => (
+                        <SelectItem key={f.code} value={f.code}>
+                          {f.code} — {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
               {errors.furnace_code && <p className="text-xs text-destructive">{errors.furnace_code.message}</p>}
             </div>
 
@@ -100,14 +119,22 @@ export default function GasRecordForm() {
                 검침 구분 <span className="text-destructive">*</span>
                 <InfoTooltip content="자동검침 미터값, 고지서 실측값, 현장 자체검침값 중 데이터 출처를 지정합니다." />
               </Label>
-              <Select defaultValue="meter" onValueChange={(v: string | null) => setValue('source', String(v ?? 'meter') as GasRecordInput['source'])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="meter">자동검침 (미터)</SelectItem>
-                  <SelectItem value="bill">고지서 기준</SelectItem>
-                  <SelectItem value="self">자체검침</SelectItem>
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="source"
+                render={({ field }) => (
+                  <Select value={field.value ?? 'meter'} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="meter">자동검침 (미터)</SelectItem>
+                      <SelectItem value="bill">고지서 기준</SelectItem>
+                      <SelectItem value="self">자체검침</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             <div className="space-y-1.5">

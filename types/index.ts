@@ -1,11 +1,32 @@
-// 데이터베이스 테이블 타입 정의
 export type Role = 'admin' | 'editor' | 'viewer'
 export type Shift = 'day' | 'night' | 'both'
 export type GasSource = 'meter' | 'bill' | 'self'
 export type CapacityClass = '5000' | '15000' | 'ringmill'
-export type TargetScope = 'line' | 'furnace' | 'company'
+export type TargetScope = 'line' | 'furnace' | 'dept' | 'company'
 export type TargetMetric = 'gas_unit' | 'ton_per_hour' | 'output'
 export type BenchmarkOrg = '두산' | '태상' | '태웅'
+export type ImportDatasetKey =
+  | 'gas-daily'
+  | 'gas-monthly'
+  | 'production'
+  | 'gas-company-monthly'
+  | 'line-output'
+  | 'work-standards'
+  | 'targets'
+  | 'raw-material-specs'
+export type ImportLayout =
+  | 'auto'
+  | 'long'
+  | 'gas-daily-wide'
+  | 'gas-monthly-wide'
+  | 'gas-charge-daily-wide'
+  | 'production-wide'
+  | 'production-detail'
+  | 'production-summary'
+  | 'production-daily'
+  | 'company-wide'
+  | 'line-output-daily'
+  | 'line-output-monthly'
 
 export interface Profile {
   id: string
@@ -16,7 +37,7 @@ export interface Profile {
 
 export interface Line {
   id: string
-  code: string // P5 | P8 | P15 | R/M | ...
+  code: string
   name: string
   capacity_class: CapacityClass
   active: boolean
@@ -24,8 +45,9 @@ export interface Line {
 
 export interface Furnace {
   id: string
-  code: string // 1호기 ~ 20호기
+  code: string
   name: string
+  dept?: string | null
   group_line_id: string | null
   active: boolean
 }
@@ -33,7 +55,7 @@ export interface Furnace {
 export interface Product {
   id: string
   name: string
-  material: string // 금형강|크랭크축|쉘|로터|C/S|A/S|SUS
+  material: string
   std_ton_per_hour: number | null
   std_gas_unit: number | null
   active: boolean
@@ -41,42 +63,57 @@ export interface Product {
 
 export interface ProductionRecord {
   id: string
-  work_month: string // date (YYYY-MM-01)
-  line_code: string
-  product_name: string | null
+  work_date: string | null
+  dept_line: string | null
   shift: Shift | null
-  order_no?: string | null
-  plan_ton: number
-  actual_ton: number
-  hwangji_ton: number
-  cogging_ton: number
-  rework_self_ton: number
-  rework_quality_ton: number
-  work_hours: number
-  work_count: number
-  note: string | null
-  created_by: string
+  order_no: string | null
+  product: string | null
+  material: string | null
+  process: string | null
+  order_size: string | null
+  work_size: string | null
+  order_weight: number | null
+  charge_weight: number | null
+  furnace_code: string | null
+  work_hours: number | null
+  work_count: number | null
+  ton_per_hour: number | null
+  ton_per_run: number | null
+  entered_by_name: string | null
   created_at: string
-  updated_by: string | null
   updated_at: string | null
-  // joined
+  created_by?: string | null
+  updated_by?: string | null
+  entered_by_shift?: string | null
+  source_upload_id?: string | null
+  // Legacy fields retained for compatibility with older records and screens.
+  work_month?: string | null
+  line_code?: string | null
+  product_name?: string | null
+  plan_ton?: number | null
+  actual_ton?: number | null
+  hwangji_ton?: number | null
+  cogging_ton?: number | null
+  rework_self_ton?: number | null
+  rework_quality_ton?: number | null
+  note?: string | null
   line?: Line
-  product?: Product
+  productRef?: Product
 }
 
 export interface GasRecord {
   id: string
-  ym: string // date (YYYY-MM-01)
+  ym: string
   furnace_code: string
   order_no?: string | null
   charge_weight_kg: number
   gas_usage: number
-  gas_unit: number | null // GENERATED
+  gas_unit: number | null
   source: GasSource
   note: string | null
+  source_upload_id?: string | null
   created_by: string
   created_at: string
-  // joined
   furnace?: Furnace
 }
 
@@ -87,28 +124,139 @@ export interface GasDailyReading {
   shift: Shift | null
   order_no?: string | null
   value: number
+  source_upload_id?: string | null
   created_by: string
-  // joined
   furnace?: Furnace
+}
+
+export interface GasCompanyMonthly {
+  id: string
+  ym: string
+  charge_weight_kg: number
+  gas_usage: number
+  source_upload_id?: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface LineOutputDaily {
+  id: string
+  work_date: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note: string | null
+  source_upload_id?: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface LineOutputMonthly {
+  id: string
+  ym: string
+  line_code: string
+  line_label: string | null
+  plan_ton: number
+  actual_ton: number
+  achievement_pct: number | null
+  hwangji_ton: number
+  cogging_ton: number
+  rework_self_ton: number
+  rework_quality_ton: number
+  cs_ton: number
+  as_ton: number
+  sus_ton: number
+  total_ton: number
+  work_count: number
+  note: string | null
+  source_upload_id?: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
 }
 
 export interface Target {
   id: string
-  year: number
+  year?: number | null
+  dept?: string | null
   scope: TargetScope
-  ref_id: string | null
+  ref: string
   metric: TargetMetric
   target_value: number
   note: string | null
+  source_upload_id?: string | null
 }
 
 export interface Benchmark {
   id: string
   org: BenchmarkOrg
   metric: TargetMetric
-  product_or_scope: string
+  scope: string
   value: number
-  year: number
+}
+
+export interface WorkStandard {
+  id: string
+  dept: string
+  product: string
+  material: string
+  basis: 'charge' | 'product'
+  min_ton: number | null
+  max_ton: number | null
+  order_size: string | null
+  std_work_count: number
+  note: string | null
+  source_upload_id?: string | null
+}
+
+export interface RawMaterialSpec {
+  id: string
+  product: string
+  material: string
+  raw_material: string
+  spec: string
+  note: string | null
+  source_upload_id?: string | null
+}
+
+export interface AppSetting {
+  key: string
+  value: Record<string, unknown> | string | number | boolean | null
+  note: string | null
+}
+
+export type LineOutputPeriodType = 'daily' | 'monthly'
+
+export interface LineOutputRow {
+  period: string
+  ptype: LineOutputPeriodType
+  line_code: string
+  output_kg: number | null
+  plan_kg: number | null
+  achievement: number | null
+  hwangji_kg: number | null
+  cogging_kg: number | null
+  subtotal_kg: number | null
+  remake_self_remake: number | null
+  remake_self_fix: number | null
+  remake_qc_remake: number | null
+  remake_qc_fix: number | null
+  mat_cs_kg: number | null
+  mat_as_kg: number | null
+  mat_sus_kg: number | null
+  mat_total_kg: number | null
 }
 
 export interface AuditLog {
@@ -122,18 +270,68 @@ export interface AuditLog {
   at: string
 }
 
-// UI 유틸 타입
 export interface KpiData {
   label: string
   value: string | number
   unit?: string
-  change?: number // 전월 대비 증감률 (%)
+  change?: number
   changeLabel?: string
   trend?: 'up' | 'down' | 'neutral'
-  goodWhenDown?: boolean // true면 값이 내려갈 때 파란색 (원단위 등)
+  goodWhenDown?: boolean
 }
 
 export interface ChartDataPoint {
   month: string
   [key: string]: string | number | null
+}
+
+export interface ImportAlias {
+  id: string
+  dataset_key: ImportDatasetKey | 'shared'
+  canonical_field: string
+  alias_text: string
+  active: boolean
+  note: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface ImportTemplate {
+  id: string
+  name: string
+  dataset_key: ImportDatasetKey
+  sheet_rules: Record<string, unknown>
+  mapping_json: Record<string, unknown>
+  signature_json: Record<string, unknown>
+  active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface ImportUpload {
+  id: string
+  dataset_key: ImportDatasetKey
+  sheet_name: string
+  file_name: string
+  storage_bucket: string
+  storage_path: string
+  file_hash: string
+  file_size: number
+  status: 'stored' | 'parsed' | 'failed' | 'reprocessing'
+  layout: ImportLayout
+  row_count: number
+  saved_count: number
+  failed_count: number
+  warning_count: number
+  template_id: string | null
+  template_name: string | null
+  mapping_json: Record<string, unknown>
+  summary_json: Record<string, unknown>
+  parsed_at?: string | null
+  error_message?: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string | null
 }

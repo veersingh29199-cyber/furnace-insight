@@ -10,6 +10,7 @@ import { RouteHero } from '@/components/input/route-hero'
 import { createClient } from '@/lib/supabase/client'
 import { currentMonthDate } from '@/lib/utils'
 import { daysInMonth, currentMonthYm } from '@/lib/input/common'
+import { DB } from '@/types/db'
 import { ClipboardList, Flame, CalendarDays, ArrowRight, Upload, Sparkles } from 'lucide-react'
 
 const routeCards = [
@@ -46,9 +47,10 @@ export default function InputHomePage() {
     queryKey: ['input-home-production-count', monthDate],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from('production_records')
+        .from(DB.tables.productionRecords)
         .select('*', { count: 'exact', head: true })
-        .eq('work_month', monthDate)
+        .gte(DB.productionRecords.workDate, `${ym}-01`)
+        .lte(DB.productionRecords.workDate, `${ym}-${String(lastDay).padStart(2, '0')}`)
 
       if (error) throw error
       return count ?? 0
@@ -59,9 +61,9 @@ export default function InputHomePage() {
     queryKey: ['input-home-gas-count', monthDate],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from('gas_records')
+        .from(DB.tables.gasRecords)
         .select('*', { count: 'exact', head: true })
-        .eq('ym', monthDate)
+        .eq(DB.gasRecords.ym, monthDate)
 
       if (error) throw error
       return count ?? 0
@@ -72,10 +74,10 @@ export default function InputHomePage() {
     queryKey: ['input-home-daily-count', ym],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from('gas_daily_readings')
+        .from(DB.tables.gasDailyReadings)
         .select('*', { count: 'exact', head: true })
-        .gte('date', `${ym}-01`)
-        .lte('date', `${ym}-${String(lastDay).padStart(2, '0')}`)
+        .gte(DB.gasDailyReadings.date, `${ym}-01`)
+        .lte(DB.gasDailyReadings.date, `${ym}-${String(lastDay).padStart(2, '0')}`)
 
       if (error) throw error
       return count ?? 0
@@ -119,8 +121,8 @@ export default function InputHomePage() {
             <Link href="/input/production" className={buttonVariants({ className: 'gap-2' })}>
               지금 입력 시작 <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/import" className={buttonVariants({ variant: 'outline', className: 'gap-2' })}>
-              기존 임포트 <Upload className="h-4 w-4" />
+            <Link href="/upload" className={buttonVariants({ variant: 'outline', className: 'gap-2' })}>
+              파일 업로드 <Upload className="h-4 w-4" />
             </Link>
           </>
         )}

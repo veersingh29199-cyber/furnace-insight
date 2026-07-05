@@ -3,16 +3,18 @@ import { createInputId, monthDateForDay, daysInMonth } from '@/lib/input/common'
 
 export interface ProductionGridRow {
   id: string
-  line_code: string | null
-  product_name: string | null
+  work_date: string
+  dept_line: string | null
   shift: Shift | null
   order_no: string
-  plan_ton: number | null
-  actual_ton: number | null
-  hwangji_ton: number | null
-  cogging_ton: number | null
-  rework_self_ton: number | null
-  rework_quality_ton: number | null
+  product: string | null
+  material: string | null
+  process: string
+  order_size: string
+  work_size: string
+  order_weight: number | null
+  charge_weight: number | null
+  furnace_code: string | null
   work_hours: number | null
   work_count: number | null
   note: string
@@ -37,19 +39,21 @@ export interface DailyGasGridRow {
   [key: string]: string | number | null
 }
 
-export function createBlankProductionRow(): ProductionGridRow {
+export function createBlankProductionRow(workDate = new Date().toISOString().slice(0, 10)): ProductionGridRow {
   return {
     id: createInputId('production'),
-    line_code: null,
-    product_name: null,
-    shift: 'both',
+    work_date: workDate,
+    dept_line: null,
+    shift: 'day',
     order_no: '',
-    plan_ton: null,
-    actual_ton: null,
-    hwangji_ton: null,
-    cogging_ton: null,
-    rework_self_ton: null,
-    rework_quality_ton: null,
+    product: null,
+    material: null,
+    process: '',
+    order_size: '',
+    work_size: '',
+    order_weight: null,
+    charge_weight: null,
+    furnace_code: null,
     work_hours: null,
     work_count: null,
     note: '',

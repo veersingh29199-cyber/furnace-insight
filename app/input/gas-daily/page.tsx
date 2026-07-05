@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import GasDailyForm from '@/components/forms/gas-daily-form'
+import { InputPageSkeleton } from '@/components/input/input-page-skeleton'
 import { RouteHero } from '@/components/input/route-hero'
 import {
   createDynamicNumberKeyColumn,
@@ -341,28 +342,32 @@ export default function GasDailyInputPage() {
   const queryClient = useQueryClient()
   const { data: furnaces } = useFurnaces()
   const furnaceCodes = useMemo(() => (furnaces ?? []).map((furnace) => furnace.code), [furnaces])
-  const initialDraft = useMemo(() => readDraft(), [])
-  const [monthYm, setMonthYm] = useState(() => initialDraft.monthYm)
-  const [mode, setMode] = useState<DailyDraft['mode']>(() => initialDraft.mode)
-  const [gridRows, setGridRows] = useState<DailyGasGridRow[]>(() => initialDraft.gridRows)
-  const [pasteText, setPasteText] = useState(() => initialDraft.pasteText)
+  const [monthYm, setMonthYm] = useState(() => currentMonthYm())
+  const [mode, setMode] = useState<DailyDraft['mode']>('grid')
+  const [gridRows, setGridRows] = useState<DailyGasGridRow[]>(() => createBlankDailyGasRows(currentMonthYm(), []))
+  const [pasteText, setPasteText] = useState('')
   const [preview, setPreview] = useState<ParsedSpreadsheet<DailyGasGridRow> | null>(null)
-  const [activeFileName, setActiveFileName] = useState(() => initialDraft.activeFileName)
+  const [activeFileName, setActiveFileName] = useState('')
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [isContentReady, setIsContentReady] = useState(false)
 
   const previousMonth = previousMonthYm(monthYm)
   const previousMonthLastDay = daysInMonth(previousMonth)
 
   const { data: previousMonthRecords, isFetching: loadingPrevious } = useQuery({
     queryKey: ['input-gas-daily-prev-month', previousMonth],
+    enabled: isHydrated,
     queryFn: async () => {
       const { data, error } = await supabase
         .from(DB.tables.gasDailyReadings)
-        .select('*')
-        .gte('date', `${previousMonth}-01`)
-        .lte('date', `${previousMonth}-${String(previousMonthLastDay).padStart(2, '0')}`)
-        .order('date', { ascending: true })
-        .order('shift', { ascending: true, nullsFirst: true })
-        .order('furnace_code', { ascending: true })
+        .select(
+          `id, ${DB.gasDailyReadings.date}, ${DB.gasDailyReadings.furnaceCode}, ${DB.gasDailyReadings.shift}, ${DB.gasDailyReadings.value}, ${DB.gasDailyReadings.orderNo}, ${DB.gasDailyReadings.sourceUploadId}, ${DB.gasDailyReadings.createdBy}, ${DB.gasDailyReadings.enteredByName}, ${DB.gasDailyReadings.enteredByShift}`
+        )
+        .gte(DB.gasDailyReadings.date, `${previousMonth}-01`)
+        .lte(DB.gasDailyReadings.date, `${previousMonth}-${String(previousMonthLastDay).padStart(2, '0')}`)
+        .order(DB.gasDailyReadings.date, { ascending: true })
+        .order(DB.gasDailyReadings.shift, { ascending: true, nullsFirst: true })
+        .order(DB.gasDailyReadings.furnaceCode, { ascending: true })
 
       if (error) throw error
       return (data ?? []) as GasDailyReading[]
@@ -399,7 +404,31 @@ export default function GasDailyInputPage() {
   )
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    const handle = window.setTimeout(() => {
+      const draft = readDraft()
+      setMonthYm(draft.monthYm)
+      setMode(draft.mode)
+      setGridRows(draft.gridRows)
+      setPasteText(draft.pasteText)
+      setActiveFileName(draft.activeFileName)
+      setIsHydrated(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const handle = window.setTimeout(() => {
+      setIsContentReady(true)
+    }, 0)
+
+    return () => window.clearTimeout(handle)
+  }, [isHydrated])
+
+  useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return
 
     const handle = window.setTimeout(() => {
       window.localStorage.setItem(
@@ -416,7 +445,7 @@ export default function GasDailyInputPage() {
     }, 250)
 
     return () => window.clearTimeout(handle)
-  }, [monthYm, mode, gridRows, pasteText, activeFileName])
+  }, [isHydrated, monthYm, mode, gridRows, pasteText, activeFileName])
 
   const parser = useMemo(() => buildDailyParser(monthYm, furnaces), [monthYm, furnaces])
 
@@ -490,9 +519,6 @@ export default function GasDailyInputPage() {
       return
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const operatorName =
       typeof window !== 'undefined' ? window.localStorage.getItem('furnace_operator_name') || '현장 입력' : null
     const operatorShift =
@@ -504,7 +530,7 @@ export default function GasDailyInputPage() {
     for (let index = 0; index < payloads.length; index += batchSize) {
       const batch = payloads.slice(index, index + batchSize).map((payload) => ({
         ...payload,
-        created_by: user?.id ?? null,
+        created_by: null,
         entered_by_name: operatorName,
         entered_by_shift: operatorShift,
       }))
@@ -519,6 +545,7 @@ export default function GasDailyInputPage() {
 
     await queryClient.invalidateQueries({ queryKey: ['gas-daily-all'] })
     await queryClient.invalidateQueries({ queryKey: ['dashboard-kpi'] })
+    await queryClient.invalidateQueries({ queryKey: ['input-home-daily-count'] })
     window.localStorage.removeItem(DRAFT_KEY)
     setPreview(null)
     toast.success(`${saved}건을 저장했습니다.`)
@@ -536,6 +563,8 @@ export default function GasDailyInputPage() {
   })
 
   useEffect(() => {
+    if (!isHydrated) return
+
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
@@ -545,7 +574,7 @@ export default function GasDailyInputPage() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [isHydrated])
 
   const handleParsePaste = () => {
     const matrix = parseDelimitedText(pasteText)
@@ -677,7 +706,9 @@ export default function GasDailyInputPage() {
         }
       />
 
-      <Tabs value={mode} onValueChange={(value) => setMode(value as DailyDraft['mode'])} className="space-y-4">
+      {isContentReady ? (
+        <>
+          <Tabs value={mode} onValueChange={(value) => setMode(value as DailyDraft['mode'])} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="grid">그리드 직접 입력</TabsTrigger>
           <TabsTrigger value="paste">붙여넣기 / 파일 업로드</TabsTrigger>
@@ -905,6 +936,10 @@ export default function GasDailyInputPage() {
           임시저장 삭제
         </Button>
       </div>
+        </>
+      ) : (
+        <InputPageSkeleton />
+      )}
     </div>
   )
 }

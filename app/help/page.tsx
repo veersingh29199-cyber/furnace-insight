@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { BookOpen, Flame, BarChart3, Calculator, HelpCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { BookOpen, Flame, BarChart3, Calculator, CheckCircle2 } from 'lucide-react'
 
 export default function HelpPage() {
   const glossaries = [
